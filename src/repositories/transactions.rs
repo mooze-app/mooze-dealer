@@ -3,8 +3,9 @@ use anyhow::bail;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct TransactionRepository {
-    conn: PgPool, // how to define PgPool here?
+    conn: PgPool,
 }
 
 impl TransactionRepository {
@@ -17,7 +18,7 @@ impl TransactionRepository {
         user_id: &String,
         address: &String,
         fee_address: &String,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         asset: &String,
         network: &String,
     ) -> Result<transactions::Transaction, anyhow::Error> {
@@ -41,15 +42,17 @@ impl TransactionRepository {
             (id, user_id, address, fee_address, amount_in_cents, asset, network, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
             RETURNING *
-            "#
+            "#,
+            transaction_id,
+            user_id,
+            address,
+            fee_address,
+            amount_in_cents as i32,
+            asset,
+            network
         )
-        .bind(transaction_id)
-        .bind(user_id)
-        .bind(address)
-        .bind(fee_address)
-        .bind(amount_in_cents)
-        .bind(asset)
-        .bind(network)?;
+        .fetch_one(&self.conn)
+        .await?;
 
         tx.commit().await?;
 
@@ -62,7 +65,9 @@ impl TransactionRepository {
     ) -> Result<Option<transactions::Transaction>, anyhow::Error> {
         let transaction = sqlx::query_as!(
             transactions::Transaction,
-            r#"SELECT * FROM transactions WHERE id = $1"#,
+            r#"SELECT
+            id, user_id, address, fee_address, amount_in_cents, asset, network, status
+            FROM transactions WHERE id = $1"#,
             id
         )
         .fetch_optional(&self.conn)
@@ -80,8 +85,8 @@ impl TransactionRepository {
         Ok(count == 0)
     }
 
-    async fn get_daily_spending(&self, user_id: &String) -> Result<i64, anyhow::Error> {
-        let amount: Option<i64> =
+    async fn get_daily_spending(&self, user_id: &String) -> Result<i32, anyhow::Error> {
+        let amount: Option<i32> =
             sqlx::query_scalar(r#"SUM(amount_in_cents) FROM transactions WHERE user_id = $1"#)
                 .bind(user_id)
                 .fetch_one(&self.conn)
@@ -94,16 +99,16 @@ impl TransactionRepository {
         &self,
         id: &String,
         status: &String,
-    ) -> Result<(), anyhow::Error> {
-        let tx = self.conn.begin().await?;
-        sqlx::query!("UPDATE transactions SET status = $1 WHERE id = $2")
-            .bind(status)
-            .bind(id)
-            .execute(&mut tx)
-            .await?;
+    ) -> Result<String, anyhow::Error> {
+        let transaction = sqlx::query_as!(
+            transactions::Transaction,
+            "UPDATE transactions SET status = $1 WHERE id = $2 RETURNING *",
+            status,
+            id
+        )
+        .fetch_one(&self.conn)
+        .await?;
 
-        tx.commit().await?;
-
-        Ok(())
+        Ok(transaction.id)
     }
 }
