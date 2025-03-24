@@ -1,6 +1,5 @@
 use super::transactions::TransactionServiceRequest;
-use super::RequestHandler;
-use super::ServiceError;
+use super::{RequestHandler, Service, ServiceError};
 
 use crate::models::pix;
 use crate::repositories::pix::PixRepository;
@@ -9,21 +8,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sqlx::PgPool;
-use tokio::{
-    spawn,
-    sync::{mpsc, oneshot},
-};
+use tokio::sync::{mpsc, oneshot};
 
 pub enum PixServiceRequest {
     Deposit {
         address: String,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         transaction_id: String,
         response: oneshot::Sender<Result<pix::Deposit, ServiceError>>,
     },
 }
 
-struct PixRequestHandler {
+#[derive(Clone)]
+pub struct PixRequestHandler {
     repository: Arc<PixRepository>,
     transaction_channel: mpsc::Sender<TransactionServiceRequest>,
 }
@@ -45,7 +42,7 @@ impl PixRequestHandler {
 
     async fn new_pix_deposit(
         &self,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         address: String,
         transaction_id: String,
     ) -> Result<pix::Deposit, ServiceError> {
@@ -106,3 +103,14 @@ impl RequestHandler<PixServiceRequest> for PixRequestHandler {
         }
     }
 }
+
+pub struct PixService;
+
+impl PixService {
+    pub fn new() -> Self {
+        PixService {}
+    }
+}
+
+#[async_trait]
+impl Service<PixServiceRequest, PixRequestHandler> for PixService {}
