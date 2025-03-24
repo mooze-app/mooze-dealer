@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-governor = "0.8.0"
-actix-web = "4.10.2"
 anyhow = "1.0.97"
 async-trait = "0.1.87"
+axum = "0.8.1"
+bdk = "0.30.2"
 config = { version = "0.15.11", features = ["toml"] }
+dashmap = "6.1.0"
+futures-util = "0.3.31"
 lwk_common = "0.9.0"
 lwk_signer = "0.9.0"
 lwk_wollet = "0.9.0"
@@ -16,8 +18,10 @@ reqwest = "0.12.14"
 serde = "1.0.219"
 serde_json = "1.0.140"
 sha2 = "0.10.8"
-sqlx = { version = "0.8.3", features = ["postgres"] }
+sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio"] }
 thiserror = "2.0.12"
 tokio = { version = "1.44.0", features = ["full"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+tower-http = { version = "0.6.2", features = ["trace"] }
+tungstenite = "0.26.2"
 uuid = { version = "1.15.1", features = ["v4"] }
