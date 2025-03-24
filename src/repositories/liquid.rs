@@ -8,9 +8,9 @@ use lwk_signer::SwSigner;
 use lwk_wollet::{
     self,
     blocking::BlockchainBackend,
-    elements::{pset::PartiallySignedTransaction, Txid},
+    elements::{pset::PartiallySignedTransaction, TxOut, Txid},
     full_scan_with_electrum_client, ElectrumClient, ElectrumUrl, ElementsNetwork, FsPersister,
-    Wollet,
+    WalletTxOut, Wollet,
 };
 
 trait SignerExt {
@@ -49,11 +49,11 @@ impl LiquidRepository {
         mnemonic: &str,
         electrum_url: String,
         wallet_dir: String,
-        network: ElementsNetwork,
+        is_mainnet: bool,
     ) -> Result<Arc<LiquidRepository>, anyhow::Error> {
-        let is_mainnet = match network {
-            ElementsNetwork::Liquid => true,
-            _ => false,
+        let network = match is_mainnet {
+            true => ElementsNetwork::Liquid,
+            false => ElementsNetwork::LiquidTestnet,
         };
 
         // using expect here to stop at startup if wallet load fails
@@ -138,5 +138,37 @@ impl LiquidRepository {
             .to_string();
 
         Ok(address)
+    }
+
+    pub async fn generate_change_address(&self) -> Result<String, anyhow::Error> {
+        let wallet = self.wallet.read().await;
+        let address = wallet
+            .change(None)
+            .map_err(|e| anyhow!(e.to_string()))?
+            .address()
+            .to_string();
+
+        Ok(address)
+    }
+
+    pub async fn get_utxos(
+        &self,
+        asset: Option<String>,
+    ) -> Result<Vec<WalletTxOut>, anyhow::Error> {
+        let wallet = self.wallet.read().await;
+        let utxos = wallet
+            .utxos()
+            .map_err(|e| anyhow!("Failed to fetch UTXOs: {e}"))?;
+
+        if let Some(asset) = asset {
+            let filtered_utxos = utxos
+                .into_iter()
+                .filter(|utxo| utxo.unblinded.asset.to_string() == asset)
+                .collect();
+
+            return Ok(filtered_utxos);
+        }
+
+        Ok(utxos)
     }
 }
