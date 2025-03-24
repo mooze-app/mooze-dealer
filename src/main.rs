@@ -19,4 +19,9 @@ async fn main() {
     services::start_services(conn, config)
         .await
         .expect("Could not start services.");
+
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to listen for Ctrl-C");
+    println!("\n[*] Shutdown signal received, terminating.");
 }
