@@ -1,23 +1,25 @@
-use std::mem::transmute;
-use std::sync::mpsc;
-
 use super::liquid::LiquidRequest;
+use super::pix::PixServiceRequest;
+use crate::models::pix::Deposit;
 use crate::models::transactions::*;
 use crate::repositories::transactions::TransactionRepository;
 use async_trait::async_trait;
-use tokio::sync::oneshot;
+use axum::{http::StatusCode, Json};
+use sqlx::PgPool;
+use tokio::sync::{mpsc, oneshot};
 
 use super::RequestHandler;
+use super::Service;
 use super::ServiceError;
 
 pub enum TransactionServiceRequest {
     NewTransaction {
         user_id: String,
         address: String,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         asset: String,
         network: String,
-        response: oneshot::Sender<Result<Transaction, ServiceError>>,
+        response: oneshot::Sender<Result<Deposit, ServiceError>>,
     },
     UpdateTransactionStatus {
         transaction_id: String,
@@ -30,19 +32,25 @@ pub enum TransactionServiceRequest {
     },
 }
 
-struct TransactionRequestHandler {
+#[derive(Clone)]
+pub struct TransactionRequestHandler {
     repository: TransactionRepository,
     liquid_channel: mpsc::Sender<LiquidRequest>,
+    pix_channel: mpsc::Sender<PixServiceRequest>,
 }
 
 impl TransactionRequestHandler {
     pub fn new(
-        repository: TransactionRepository,
+        sql_conn: PgPool,
         liquid_channel: mpsc::Sender<LiquidRequest>,
+        pix_channel: mpsc::Sender<PixServiceRequest>,
     ) -> Self {
+        let repository = TransactionRepository::new(sql_conn);
+
         TransactionRequestHandler {
             repository,
             liquid_channel,
+            pix_channel,
         }
     }
 
@@ -50,16 +58,20 @@ impl TransactionRequestHandler {
         &self,
         user_id: String,
         address: String,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         asset: String,
         network: String,
-    ) -> Result<Transaction, ServiceError> {
+    ) -> Result<Deposit, ServiceError> {
         let (liquid_tx, liquid_rx) = oneshot::channel();
+        let (pix_tx, pix_rx) = oneshot::channel();
+
         self.liquid_channel
             .send(LiquidRequest::GetNewAddress {
                 response: liquid_tx,
             })
-            .map_err(|e| ServiceError::Communication("Transaction".to_string(), e.to_string()));
+            .await
+            .map_err(|e| ServiceError::Communication("Transaction".to_string(), e.to_string()))
+            .map_err(|e| ServiceError::Communication("Transaction".to_string(), e.to_string()))?;
 
         let fee_address = liquid_rx
             .await
@@ -93,15 +105,48 @@ impl TransactionRequestHandler {
                 ServiceError::Repository("TransactionService".to_string(), e.to_string())
             })?;
 
-        Ok(transaction)
+        self.pix_channel
+            .send(PixServiceRequest::Deposit {
+                address: fee_address,
+                amount_in_cents,
+                transaction_id: transaction.id.clone(),
+                response: pix_tx,
+            })
+            .await
+            .map_err(|e| {
+                ServiceError::ExternalService(
+                    "TransactionService".to_string(),
+                    "PixService".to_string(),
+                    e.to_string(),
+                )
+            })?;
+
+        let pix_deposit = pix_rx
+            .await
+            .map_err(|e| {
+                ServiceError::ExternalService(
+                    "TransactionService".to_string(),
+                    "PixService".to_string(),
+                    e.to_string(),
+                )
+            })?
+            .map_err(|e| {
+                ServiceError::ExternalService(
+                    "TransactionService".to_string(),
+                    "PixService".to_string(),
+                    e.to_string(),
+                )
+            })?;
+
+        Ok(pix_deposit)
     }
 
     async fn update_transaction_status(
         &self,
         transaction_id: &String,
         status: &String,
-    ) -> Result<(), ServiceError> {
-        let _ = self
+    ) -> Result<String, ServiceError> {
+        let transaction_id = self
             .repository
             .update_transaction_status(transaction_id, status)
             .await
@@ -112,7 +157,7 @@ impl TransactionRequestHandler {
         let transaction_id_clone = transaction_id.clone();
         if status == "eulen_depix_sent" {}
 
-        Ok(())
+        Ok(transaction_id)
     }
 }
 
@@ -137,7 +182,7 @@ impl RequestHandler<TransactionServiceRequest> for TransactionRequestHandler {
                 transaction_id,
                 status,
             } => {
-                let result = self
+                let _ = self
                     .update_transaction_status(&transaction_id, &status)
                     .await;
             }
@@ -145,3 +190,14 @@ impl RequestHandler<TransactionServiceRequest> for TransactionRequestHandler {
         }
     }
 }
+
+pub struct TransactionService;
+
+impl TransactionService {
+    pub fn new() -> Self {
+        TransactionService {}
+    }
+}
+
+#[async_trait]
+impl Service<TransactionServiceRequest, TransactionRequestHandler> for TransactionService {}
