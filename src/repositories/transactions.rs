@@ -59,7 +59,7 @@ impl TransactionRepository {
         Ok(transaction)
     }
 
-    async fn get_transaction(
+    pub async fn get_transaction(
         &self,
         id: &String,
     ) -> Result<Option<transactions::Transaction>, anyhow::Error> {
