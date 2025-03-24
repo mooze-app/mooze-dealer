@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize)]
+pub struct PixTransaction {
+    pub id: String,
+    pub transaction_id: String,
+    pub eulen_id: String,
+    pub address: String,
+    pub amount_in_cents: i32,
+    pub status: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct EulenDeposit {
     pub id: String,
     pub qrCopyPaste: String,
@@ -18,7 +28,7 @@ pub struct EulenDepositStatus {
     pub pixKey: String,
     pub qrId: String,
     pub status: String,
-    pub valueInCents: i64,
+    pub valueInCents: i32,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -26,7 +36,7 @@ pub struct Deposit {
     pub id: String,
     pub transaction_id: String,
     pub eulen_id: String,
-    pub amount_in_cents: i64,
+    pub amount_in_cents: i32,
     pub qr_copy_paste: String,
     pub qr_image_url: String,
 }
