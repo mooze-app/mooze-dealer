@@ -11,24 +11,27 @@ pub struct PixTransaction {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EulenDeposit {
     pub id: String,
-    pub qrCopyPaste: String,
-    pub qrImageUrl: String,
+    pub qr_copy_paste: String,
+    pub qr_image_url: String,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EulenDepositStatus {
-    pub bankTxId: String,
-    pub blockchainTxID: String,
-    pub customerMessage: String,
-    pub payerName: String,
-    pub payerTaxNumber: String,
+    pub bank_tx_id: String,
+    #[serde(rename = "blockchainTxID")]
+    pub blockchain_tx_id: String,
+    pub customer_message: String,
+    pub payer_name: String,
+    pub payer_tax_number: String,
     pub expiration: String,
-    pub pixKey: String,
-    pub qrId: String,
+    pub pix_key: String,
+    pub qr_id: String,
     pub status: String,
-    pub valueInCents: i32,
+    pub value_in_cents: i32,
 }
 
 #[derive(Clone, Deserialize, Serialize)]

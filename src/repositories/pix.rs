@@ -45,8 +45,8 @@ impl PixRepository {
             transaction_id: transaction_id.clone(),
             eulen_id: eulen_deposit.id.clone(),
             amount_in_cents,
-            qr_copy_paste: eulen_deposit.qrCopyPaste.clone(),
-            qr_image_url: eulen_deposit.qrImageUrl.clone(),
+            qr_copy_paste: eulen_deposit.qr_copy_paste.clone(),
+            qr_image_url: eulen_deposit.qr_image_url.clone(),
         };
 
         Ok(deposit)
@@ -60,7 +60,7 @@ impl PixRepository {
             pix::PixTransaction,
             "UPDATE pix_transactions SET status = $1 WHERE eulen_id = $2 returning *",
             eulen_deposit_status.status,
-            eulen_deposit_status.bankTxId
+            eulen_deposit_status.bank_tx_id
         )
         .fetch_one(&self.conn)
         .await?;
