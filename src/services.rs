@@ -50,7 +50,7 @@ where
     }
 }
 
-async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyhow::Error> {
+pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyhow::Error> {
     let (transaction_tx, mut transaction_rx) = mpsc::channel(512);
     let (liquid_tx, mut liquid_rx) = mpsc::channel(512);
     let (pix_tx, mut pix_rx) = mpsc::channel(512);
@@ -59,6 +59,7 @@ async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyhow::
     let mut liquid_service = liquid::LiquidService::new();
     let mut pix_service = pix::PixService::new();
 
+    println!("[*] Starting transaction service.");
     transaction_service
         .run(
             transactions::TransactionRequestHandler::new(
@@ -70,18 +71,19 @@ async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyhow::
         )
         .await;
 
+    println!("[*] Starting Liquid service.");
     liquid_service
         .run(
             liquid::LiquidRequestHandler::new(
                 settings.wallet.mnemonic,
                 settings.electrum.url,
-                settings.wallet.wallet_dir,
                 false,
             ),
             &mut liquid_rx,
         )
         .await;
 
+    println!("[*] Starting Pix service.");
     pix_service
         .run(
             pix::PixRequestHandler::new(
@@ -94,7 +96,9 @@ async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyhow::
         )
         .await;
 
+    println!("[*] Starting HTTP server.");
     http::start_http_server(transaction_tx.clone()).await?;
 
+    println!("[SUCCESS] Started services.");
     Ok(())
 }
