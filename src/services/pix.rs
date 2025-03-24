@@ -17,6 +17,10 @@ pub enum PixServiceRequest {
         transaction_id: String,
         response: oneshot::Sender<Result<pix::Deposit, ServiceError>>,
     },
+    UpdateEulenStatus {
+        eulen_status: pix::EulenDepositStatus,
+        response: oneshot::Sender<Result<(), ServiceError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -99,6 +103,15 @@ impl RequestHandler<PixServiceRequest> for PixRequestHandler {
                         ServiceError::Repository("PixRepository".to_string(), e.to_string())
                     });
                 let _ = response.send(deposit);
+            }
+            PixServiceRequest::UpdateEulenStatus {
+                eulen_status,
+                response,
+            } => {
+                let update = self.update_deposit_status(eulen_status).await.map_err(|e| {
+                    ServiceError::Repository("PixRepository".to_string(), e.to_string())
+                });
+                let _ = response.send(update);
             }
         }
     }
