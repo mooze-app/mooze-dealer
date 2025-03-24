@@ -1,11 +1,12 @@
 use crate::models::pix;
+use sqlx;
 use sqlx::PgPool;
 use uuid::Uuid;
 mod eulen;
 
 pub struct PixRepository {
     eulen_api: eulen::EulenApi,
-    conn: PgPool, // how to define PgPool here?,
+    conn: PgPool,
 }
 
 impl PixRepository {
@@ -18,27 +19,26 @@ impl PixRepository {
     pub async fn new_pix_deposit(
         &self,
         transaction_id: &String,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         address: &String,
     ) -> Result<pix::Deposit, anyhow::Error> {
         let deposit_id = Uuid::new_v4().hyphenated().to_string();
         let eulen_deposit = self.eulen_api.deposit(amount_in_cents, address).await?;
 
-        let tx = self.conn.begin().await?;
         sqlx::query!(
             r#"
             INSERT INTO pix_transactions
             (id, transaction_id, eulen_id, address, amount_in_cents, status)
             VALUES ($1, $2, $3, $4, $5, 'pending')
-            "#
+            "#,
+            deposit_id,
+            transaction_id,
+            eulen_deposit.id,
+            address,
+            amount_in_cents as i32
         )
-        .bind(deposit_id)
-        .bind(transaction_id)
-        .bind(eulen_deposit.id)
-        .bind(address)
-        .bind(amount_in_cents);
-
-        tx.commit();
+        .execute(&self.conn)
+        .await?;
 
         let deposit = pix::Deposit {
             id: deposit_id,
@@ -56,16 +56,15 @@ impl PixRepository {
         &self,
         eulen_deposit_status: &pix::EulenDepositStatus,
     ) -> Result<String, anyhow::Error> {
-        let payer_id_hash = eulen_deposit_status.payerTaxNumber.
-        let tx = self.conn.begin().await?;
-        let transaction_id: String =
-            sqlx::query_as!(String,
-            "UPDATE pix_transactions SET status = ? WHERE eulen_id = ? RETURNING transaction_id")
-            .bind(deposit_status)
-            .bind(eulen_id);
+        let transaction = sqlx::query_as!(
+            pix::PixTransaction,
+            "UPDATE pix_transactions SET status = $1 WHERE eulen_id = $2 returning *",
+            eulen_deposit_status.status,
+            eulen_deposit_status.bankTxId
+        )
+        .fetch_one(&self.conn)
+        .await?;
 
-        tx.commit();
-
-        Ok(transaction_id)
+        Ok(transaction.transaction_id)
     }
 }

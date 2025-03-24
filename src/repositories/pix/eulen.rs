@@ -21,7 +21,7 @@ impl EulenApi {
 
     pub async fn deposit(
         &self,
-        amount_in_cents: i64,
+        amount_in_cents: i32,
         address: &String,
     ) -> Result<pix::EulenDeposit, anyhow::Error> {
         let uuid = Uuid::new_v4().hyphenated().to_string();
