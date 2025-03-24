@@ -2,7 +2,7 @@ use super::{RequestHandler, Service, ServiceError};
 use crate::repositories::liquid::LiquidRepository;
 
 use async_trait::async_trait;
-use lwk_wollet::{elements::pset::PartiallySignedTransaction, WalletTxOut};
+use lwk_wollet::{elements::pset::PartiallySignedTransaction, UnvalidatedRecipient, WalletTxOut};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
@@ -16,6 +16,12 @@ pub enum LiquidRequest {
     GetUtxos {
         asset: Option<String>,
         response: oneshot::Sender<Result<Vec<WalletTxOut>, ServiceError>>,
+    },
+    BuildTransaction {
+        address: String,
+        amount: i32,
+        asset: String,
+        response: oneshot::Sender<Result<PartiallySignedTransaction, ServiceError>>,
     },
     SignTransaction {
         pset: PartiallySignedTransaction,
@@ -57,6 +63,26 @@ impl LiquidRequestHandler {
             .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))
     }
 
+    async fn build_liquid_transaction(
+        &self,
+        amount: i32,
+        address: String,
+        asset: String,
+    ) -> Result<PartiallySignedTransaction, ServiceError> {
+        let recipient = UnvalidatedRecipient {
+            satoshi: amount as u64,
+            address,
+            asset,
+        };
+        let tx = self
+            .liquid_repository
+            .build_transaction(vec![recipient])
+            .await
+            .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))?;
+
+        Ok(tx)
+    }
+
     async fn sign_transaction(
         &self,
         mut pset: PartiallySignedTransaction,
@@ -82,6 +108,15 @@ impl RequestHandler<LiquidRequest> for LiquidRequestHandler {
             LiquidRequest::GetUtxos { asset, response } => {
                 let utxos = self.get_utxos(asset).await;
                 let _ = response.send(utxos);
+            }
+            LiquidRequest::BuildTransaction {
+                address,
+                amount,
+                asset,
+                response,
+            } => {
+                let tx = self.build_liquid_transaction(amount, address, asset).await;
+                let _ = response.send(tx);
             }
             LiquidRequest::SignTransaction { mut pset, response } => {
                 let signed_pset = self.sign_transaction(pset).await;
