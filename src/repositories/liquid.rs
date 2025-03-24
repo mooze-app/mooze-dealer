@@ -1,4 +1,4 @@
-use std::path::Path;
+use directories::ProjectDirs;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -48,7 +48,6 @@ impl LiquidRepository {
     pub fn new(
         mnemonic: &str,
         electrum_url: String,
-        wallet_dir: String,
         is_mainnet: bool,
     ) -> Result<Arc<LiquidRepository>, anyhow::Error> {
         let network = match is_mainnet {
@@ -61,8 +60,8 @@ impl LiquidRepository {
             .expect("Could not build signer. Maybe mnemonic is invalid?");
         let descriptor = signer.wpkh_slip77_descriptor().unwrap();
 
-        let path = Path::new(&wallet_dir);
-        let persister = FsPersister::new(path, network, &descriptor).unwrap();
+        let proj_dirs = ProjectDirs::from("com", "mooze", "dealer").unwrap();
+        let persister = FsPersister::new(proj_dirs.config_dir(), network, &descriptor).unwrap();
 
         let electrum_url =
             ElectrumUrl::new(&electrum_url, true, true).expect("Invalid Electrum URL.");
@@ -72,6 +71,13 @@ impl LiquidRepository {
             ElectrumClient::new(&electrum_url).expect("Could not connect to Electrum server.");
 
         full_scan_with_electrum_client(&mut wallet, &mut electrum_client)?;
+
+        let balances = wallet.balance().expect("Could not get balances.");
+
+        println!("[INFO] Wallet sync completed. Balance: ");
+        for (asset, balance) in balances {
+            println!("Asset: {}, Balance: {}", asset, balance);
+        }
 
         Ok(Arc::new(LiquidRepository {
             signer,
@@ -105,7 +111,7 @@ impl LiquidRepository {
     ) -> Result<PartiallySignedTransaction, anyhow::Error> {
         self.signer
             .sign(&mut pset)
-            .map_err(|e| anyhow!("Failed to sign transaction: {e}")); // mutates pset in-place, copy it to return to caller if needed
+            .map_err(|e| anyhow!("Failed to sign transaction: {e}"))?; // mutates pset in-place, copy it to return to caller if needed
 
         let signed_pset = pset.clone();
         Ok(signed_pset)
@@ -124,7 +130,7 @@ impl LiquidRepository {
 
         let txid = client
             .broadcast(&tx)
-            .map_err(|e| anyhow!("Could not broadcast transaction."))?;
+            .map_err(|e| anyhow!("Could not broadcast transaction: {e}"))?;
 
         Ok(txid)
     }
