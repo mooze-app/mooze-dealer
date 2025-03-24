@@ -60,44 +60,60 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
     let mut pix_service = pix::PixService::new();
 
     println!("[*] Starting transaction service.");
-    transaction_service
-        .run(
-            transactions::TransactionRequestHandler::new(
-                pool.clone(),
-                liquid_tx.clone(),
-                pix_tx.clone(),
-            ),
-            &mut transaction_rx,
-        )
-        .await;
+    let tx_pool_clone = pool.clone();
+    let transaction_pix_tx = pix_tx.clone();
+    tokio::spawn(async move {
+        transaction_service
+            .run(
+                transactions::TransactionRequestHandler::new(
+                    tx_pool_clone.clone(),
+                    liquid_tx.clone(),
+                    transaction_pix_tx.clone(),
+                ),
+                &mut transaction_rx,
+            )
+            .await;
+    });
 
     println!("[*] Starting Liquid service.");
-    liquid_service
-        .run(
-            liquid::LiquidRequestHandler::new(
-                settings.wallet.mnemonic,
-                settings.electrum.url,
-                false,
-            ),
-            &mut liquid_rx,
-        )
-        .await;
+    tokio::spawn(async move {
+        liquid_service
+            .run(
+                liquid::LiquidRequestHandler::new(
+                    settings.wallet.mnemonic,
+                    settings.electrum.url,
+                    settings.wallet.mainnet,
+                ),
+                &mut liquid_rx,
+            )
+            .await;
+    });
 
     println!("[*] Starting Pix service.");
-    pix_service
-        .run(
-            pix::PixRequestHandler::new(
-                settings.depix.auth_token,
-                settings.depix.url,
-                pool,
-                transaction_tx.clone(),
-            ),
-            &mut pix_rx,
-        )
-        .await;
+    let pix_pool_clone = pool.clone();
+    let transaction_tx_clone = transaction_tx.clone();
+    tokio::spawn(async move {
+        pix_service
+            .run(
+                pix::PixRequestHandler::new(
+                    settings.depix.auth_token,
+                    settings.depix.url,
+                    pix_pool_clone,
+                    transaction_tx_clone,
+                ),
+                &mut pix_rx,
+            )
+            .await;
+    });
 
     println!("[*] Starting HTTP server.");
-    http::start_http_server(transaction_tx.clone()).await?;
+    let http_transaction_tx = transaction_tx.clone();
+    let http_pix_tx = pix_tx.clone();
+    tokio::spawn(async move {
+        http::start_http_server(http_transaction_tx, http_pix_tx)
+            .await
+            .expect("Could not start HTTP server.");
+    });
 
     println!("[SUCCESS] Started services.");
     Ok(())
