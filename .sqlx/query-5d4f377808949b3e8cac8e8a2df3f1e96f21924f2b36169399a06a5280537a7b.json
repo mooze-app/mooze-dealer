@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pix_transactions\n            (id, transaction_id, eulen_id, address, amount_in_cents, status)\n            VALUES ($1, $2, $3, $4, $5, 'pending')\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5d4f377808949b3e8cac8e8a2df3f1e96f21924f2b36169399a06a5280537a7b"
+}
