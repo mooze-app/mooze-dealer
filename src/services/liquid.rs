@@ -29,8 +29,8 @@ pub struct LiquidRequestHandler {
 }
 
 impl LiquidRequestHandler {
-    pub fn new(mnemonic: String, electrum_url: String, wallet_dir: String, testnet: bool) -> Self {
-        let liquid_repository = LiquidRepository::new(&mnemonic, electrum_url, wallet_dir, testnet)
+    pub fn new(mnemonic: String, electrum_url: String, is_mainnet: bool) -> Self {
+        let liquid_repository = LiquidRepository::new(&mnemonic, electrum_url, is_mainnet)
             .expect("Could not instantiate Liquid Repository");
 
         Self { liquid_repository }
