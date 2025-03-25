@@ -58,13 +58,9 @@ impl UserRepository {
         &self,
         user_id: &str,
     ) -> Result<Option<users::User>, anyhow::Error> {
-        let user = sqlx::query_as!(
-            users::User,
-            "SELECT id, verified, referred_by FROM users WHERE id = $1",
-            user_id
-        )
-        .fetch_optional(&self.conn)
-        .await?;
+        let user = sqlx::query_as!(users::User, "SELECT * FROM users WHERE id = $1", user_id)
+            .fetch_optional(&self.conn)
+            .await?;
 
         Ok(user)
     }

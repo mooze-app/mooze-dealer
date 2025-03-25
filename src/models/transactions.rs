@@ -10,6 +10,8 @@ pub struct Transaction {
     pub asset: String,
     pub network: String,
     pub status: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
 }
 
 #[derive(Deserialize, Serialize)]

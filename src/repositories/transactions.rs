@@ -66,7 +66,7 @@ impl TransactionRepository {
         let transaction = sqlx::query_as!(
             transactions::Transaction,
             r#"SELECT
-            id, user_id, address, fee_address, amount_in_cents, asset, network, status
+            *
             FROM transactions WHERE id = $1"#,
             id
         )

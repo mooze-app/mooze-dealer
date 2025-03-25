@@ -113,3 +113,25 @@ pub struct Quote {
 pub struct TakerSign {
     pub txid: String,
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum QuoteStatus {
+    Success {
+        quote_id: i64,
+        base_amount: u64,
+        quote_amount: u64,
+        server_fee: u64,
+        fixed_fee: u64,
+        ttl: u64,
+    },
+    LowBalance {
+        base_amount: u64,
+        quote_amount: u64,
+        server_fee: u64,
+        fixed_fee: u64,
+        available: u64,
+    },
+    Error {
+        error_msg: String,
+    },
+}

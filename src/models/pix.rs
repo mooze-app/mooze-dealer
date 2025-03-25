@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PixTransaction {
     pub id: String,
     pub transaction_id: String,
@@ -8,17 +8,20 @@ pub struct PixTransaction {
     pub address: String,
     pub amount_in_cents: i32,
     pub status: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EulenDeposit {
     pub id: String,
+    #[serde(rename = "qrCopyPaste")]
     pub qr_copy_paste: String,
+    #[serde(rename = "qrImageUrl")]
     pub qr_image_url: String,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EulenDepositStatus {
     pub bank_tx_id: String,
@@ -34,7 +37,7 @@ pub struct EulenDepositStatus {
     pub value_in_cents: i32,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Deposit {
     pub id: String,
     pub transaction_id: String,

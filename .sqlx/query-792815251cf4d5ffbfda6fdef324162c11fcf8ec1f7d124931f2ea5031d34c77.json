@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n            id, user_id, address, fee_address, amount_in_cents, asset, network, status\n            FROM transactions WHERE id = $1",
+  "query": "SELECT * FROM referrals WHERE referral_code = $1",
   "describe": {
     "columns": [
       {
@@ -15,33 +15,23 @@
       },
       {
         "ordinal": 2,
-        "name": "address",
+        "name": "referral_code",
         "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "fee_address",
+        "name": "payment_address",
         "type_info": "Varchar"
       },
       {
         "ordinal": 4,
-        "name": "amount_in_cents",
-        "type_info": "Int4"
+        "name": "created_at",
+        "type_info": "Timestamp"
       },
       {
         "ordinal": 5,
-        "name": "asset",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 6,
-        "name": "network",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 7,
-        "name": "status",
-        "type_info": "Varchar"
+        "name": "updated_at",
+        "type_info": "Timestamp"
       }
     ],
     "parameters": {
@@ -55,10 +45,8 @@
       false,
       false,
       false,
-      false,
-      false,
       false
     ]
   },
-  "hash": "814954516b77e8632a526eb6fbf201255bef687d4337bc4f008a61ea6bf74f72"
+  "hash": "792815251cf4d5ffbfda6fdef324162c11fcf8ec1f7d124931f2ea5031d34c77"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO transactions\n            (id, user_id, address, fee_address, amount_in_cents, asset, network, status)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')\n            RETURNING *\n            ",
+  "query": "SELECT\n            *\n            FROM transactions WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -56,13 +56,7 @@
     ],
     "parameters": {
       "Left": [
-        "Varchar",
-        "Varchar",
-        "Varchar",
-        "Varchar",
-        "Int4",
-        "Varchar",
-        "Varchar"
+        "Text"
       ]
     },
     "nullable": [
@@ -78,5 +72,5 @@
       false
     ]
   },
-  "hash": "4fb99ab454f1ebb9aad6ec16c1e85a913abc6033f6fd9c30d7905e642592fcf1"
+  "hash": "efbdad5bd7527e28257a0d5ebde863306b4dbe43b763be12a3270f7aeaba4e6c"
 }

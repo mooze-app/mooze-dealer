@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE pix_transactions SET status = $1 WHERE eulen_id = $2 returning *",
+  "query": "UPDATE transactions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
   "describe": {
     "columns": [
       {
@@ -10,17 +10,17 @@
       },
       {
         "ordinal": 1,
-        "name": "transaction_id",
+        "name": "user_id",
         "type_info": "Varchar"
       },
       {
         "ordinal": 2,
-        "name": "eulen_id",
+        "name": "address",
         "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "address",
+        "name": "fee_address",
         "type_info": "Varchar"
       },
       {
@@ -30,8 +30,28 @@
       },
       {
         "ordinal": 5,
+        "name": "asset",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "network",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
         "name": "status",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamp"
       }
     ],
     "parameters": {
@@ -46,8 +66,12 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "5cc5f352fecdd8acd960cbe34d83903c9cc04e3aa42e598b4df8581a97afc516"
+  "hash": "4747727f2e44989389b18df100e6cbf732a48445f66506702e970e606582c115"
 }
