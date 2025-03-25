@@ -58,9 +58,13 @@ impl UserRepository {
         &self,
         user_id: &str,
     ) -> Result<Option<users::User>, anyhow::Error> {
-        let user = sqlx::query_as!(users::User, "SELECT * FROM users WHERE id = $1", user_id)
-            .fetch_optional(&self.conn)
-            .await?;
+        let user = sqlx::query_as!(
+            users::User,
+            "SELECT id, verified, referred_by FROM users WHERE id = $1",
+            user_id
+        )
+        .fetch_optional(&self.conn)
+        .await?;
 
         Ok(user)
     }
@@ -69,9 +73,12 @@ impl UserRepository {
         let user = self.get_user_by_id(user_id).await?;
 
         if let Some(user) = user {
-            sqlx::query!("UPDATE users SET verified = true WHERE id = $1", user.id)
-                .execute(&self.conn)
-                .await?;
+            sqlx::query!(
+                "UPDATE users SET verified = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+                user.id
+            )
+            .execute(&self.conn)
+            .await?;
 
             Ok(())
         } else {

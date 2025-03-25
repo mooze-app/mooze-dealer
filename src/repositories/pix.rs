@@ -58,9 +58,9 @@ impl PixRepository {
     ) -> Result<String, anyhow::Error> {
         let transaction = sqlx::query_as!(
             pix::PixTransaction,
-            "UPDATE pix_transactions SET status = $1 WHERE eulen_id = $2 returning *",
+            "UPDATE pix_transactions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE eulen_id = $2 returning *",
             eulen_deposit_status.status,
-            eulen_deposit_status.bank_tx_id
+            eulen_deposit_status.qr_id
         )
         .fetch_one(&self.conn)
         .await?;

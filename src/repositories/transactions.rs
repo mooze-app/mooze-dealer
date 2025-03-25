@@ -1,4 +1,4 @@
-use crate::models::{pix, transactions};
+use crate::models::transactions;
 use anyhow::bail;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -86,13 +86,14 @@ impl TransactionRepository {
     }
 
     async fn get_daily_spending(&self, user_id: &String) -> Result<i32, anyhow::Error> {
-        let amount: Option<i32> =
-            sqlx::query_scalar(r#"SUM(amount_in_cents) FROM transactions WHERE user_id = $1"#)
-                .bind(user_id)
-                .fetch_one(&self.conn)
-                .await?;
+        let amount: i64 = sqlx::query_scalar(
+            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE"#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.conn)
+        .await?;
 
-        Ok(amount.unwrap_or(0))
+        Ok(amount as i32)
     }
 
     pub async fn update_transaction_status(
@@ -102,7 +103,7 @@ impl TransactionRepository {
     ) -> Result<String, anyhow::Error> {
         let transaction = sqlx::query_as!(
             transactions::Transaction,
-            "UPDATE transactions SET status = $1 WHERE id = $2 RETURNING *",
+            "UPDATE transactions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
             status,
             id
         )
