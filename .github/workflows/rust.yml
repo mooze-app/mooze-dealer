@@ -16,6 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres,chrono,runtime-tokio && cargo sqlx prepare --check
+        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres && cargo sqlx prepare --check
       - name: Run tests
         run: cargo test --verbose
