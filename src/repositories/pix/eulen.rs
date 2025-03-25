@@ -27,20 +27,17 @@ impl EulenApi {
         let uuid = Uuid::new_v4().hyphenated().to_string();
         let payload = json!({
             "amountInCents": amount_in_cents,
-            "pixAddress": address
+            "depixAddress": address
         });
 
-        let response = self
+        let payload_json = self
             .client
             .post(format!("{}/api/deposit", self.url))
             .bearer_auth(&self.auth_token)
             .header("X-Nonce", uuid)
-            .header("X-Async", "true")
-            .json(&payload)
-            .send()
-            .await?
-            .text()
-            .await?;
+            .json(&payload);
+
+        let response = payload_json.send().await?.text().await?;
 
         let response_json: serde_json::Value = serde_json::from_str(&response)?;
         match response_json.get("response") {
@@ -48,7 +45,9 @@ impl EulenApi {
                 let deposit: pix::EulenDeposit = serde_json::from_value(r.clone())?;
                 Ok(deposit)
             }
-            None => bail!("Eulen: Bad response format."),
+            None => {
+                bail!("Eulen: Bad response format.")
+            }
         }
     }
 }
