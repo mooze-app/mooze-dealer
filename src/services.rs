@@ -10,6 +10,7 @@ mod http;
 mod liquid;
 mod pix;
 mod transactions;
+mod users;
 
 #[derive(Debug, thiserror::Error)]
 enum ServiceError {
@@ -54,10 +55,12 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
     let (transaction_tx, mut transaction_rx) = mpsc::channel(512);
     let (liquid_tx, mut liquid_rx) = mpsc::channel(512);
     let (pix_tx, mut pix_rx) = mpsc::channel(512);
+    let (user_tx, mut user_rx) = mpsc::channel(512);
 
     let mut transaction_service = transactions::TransactionService::new();
     let mut liquid_service = liquid::LiquidService::new();
     let mut pix_service = pix::PixService::new();
+    let mut user_service = users::UserService::new();
 
     println!("[*] Starting transaction service.");
     let tx_pool_clone = pool.clone();
@@ -106,11 +109,23 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
             .await;
     });
 
+    println!("[*] Starting user service.");
+    let user_pool_clone = pool.clone();
+    tokio::spawn(async move {
+        user_service
+            .run(
+                users::UserRequestHandler::new(user_pool_clone),
+                &mut user_rx,
+            )
+            .await;
+    });
+
     println!("[*] Starting HTTP server.");
     let http_transaction_tx = transaction_tx.clone();
     let http_pix_tx = pix_tx.clone();
+    let http_user_tx = user_tx.clone();
     tokio::spawn(async move {
-        http::start_http_server(http_transaction_tx, http_pix_tx)
+        http::start_http_server(http_transaction_tx, http_pix_tx, http_user_tx)
             .await
             .expect("Could not start HTTP server.");
     });
