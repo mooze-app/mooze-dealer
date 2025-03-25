@@ -10,16 +10,23 @@ use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use tower_http::trace::TraceLayer;
 
-use super::{pix::PixServiceRequest, transactions::TransactionServiceRequest, ServiceError};
+use super::{
+    pix::PixServiceRequest,
+    transactions::TransactionServiceRequest,
+    users::{UserRequest, UserService},
+    ServiceError,
+};
 use crate::models::{
     self, pix,
     transactions::{NewTransaction, Transaction},
+    users::NewUser,
 };
 
 #[derive(Clone)]
 struct AppState {
     transaction_channel: mpsc::Sender<TransactionServiceRequest>,
     pix_channel: mpsc::Sender<PixServiceRequest>,
+    user_channel: mpsc::Sender<UserRequest>,
 }
 
 #[derive(Serialize)]
@@ -27,6 +34,55 @@ struct DepositResponse {
     id: String,
     qr_copy_paste: String,
     qr_image_url: String,
+}
+
+async fn create_new_user(
+    State(state): State<AppState>,
+    Json(req): Json<NewUser>,
+) -> impl IntoResponse {
+    let (user_tx, user_rx) = oneshot::channel();
+
+    let user_result = state
+        .user_channel
+        .send(UserRequest::CreateUser {
+            referral_code: req.referral_code,
+            response: user_tx,
+        })
+        .await;
+
+    if let Err(e) = user_result {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "error": "Internal server error",
+                "details": e.to_string()
+            })),
+        );
+    }
+
+    match user_rx.await {
+        Ok(Ok(user)) => return (StatusCode::CREATED, Json(json!({"user_id": user.id}))),
+        Ok(Err(service_error)) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "error": "Database error",
+                    "details": "Código de indicação inválido."
+                })),
+            )
+        }
+        Err(e) => {
+            return {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "error": "Internal server error",
+                        "details": e.to_string()
+                    })),
+                )
+            }
+        }
+    }
 }
 
 async fn request_new_deposit(
@@ -65,11 +121,15 @@ async fn request_new_deposit(
         }
         Ok(Err(service_error)) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"description": format!("Internal server error.")})),
+            Json(
+                json!({"error": format!("Internal server error."), "details": service_error.to_string()}),
+            ),
         ),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"description": format!("Failed to receive response: {}", e)})),
+            Json(
+                json!({"error": format!("Failed to receive response: {}", e), "details": e.to_string()}),
+            ),
         ),
     }
 }
@@ -113,13 +173,16 @@ async fn eulen_update_status(
 pub async fn start_http_server(
     transaction_channel: mpsc::Sender<TransactionServiceRequest>,
     pix_channel: mpsc::Sender<PixServiceRequest>,
+    user_channel: mpsc::Sender<UserRequest>,
 ) -> Result<(), anyhow::Error> {
     let app_state = AppState {
         transaction_channel,
         pix_channel,
+        user_channel,
     };
 
     let app = Router::new()
+        .route("/user", post(create_new_user))
         .route("/deposit", post(request_new_deposit))
         .route("/eulen_update_status", post(eulen_update_status))
         .route("/hello", get(|| async { "Hello, World!" }))
