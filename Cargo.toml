@@ -8,9 +8,14 @@ anyhow = "1.0.97"
 async-trait = "0.1.87"
 axum = "0.8.1"
 bdk = "0.30.2"
+chrono = "0.4.40"
 config = { version = "0.15.11", features = ["toml"] }
 dashmap = "6.1.0"
+directories = "6.0.0"
+dotenv = "0.15.0"
 futures-util = "0.3.31"
+log = "0.4.27"
+log4rs = "1.3.0"
 lwk_common = "0.9.0"
 lwk_signer = "0.9.0"
 lwk_wollet = "0.9.0"
@@ -18,7 +23,7 @@ reqwest = "0.12.14"
 serde = "1.0.219"
 serde_json = "1.0.140"
 sha2 = "0.10.8"
-sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio"] }
+sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio", "chrono"] }
 thiserror = "2.0.12"
 tokio = { version = "1.44.0", features = ["full"] }
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
