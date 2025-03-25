@@ -33,7 +33,7 @@ pub struct Sideswap {
 #[derive(Debug, Deserialize)]
 pub struct Wallet {
     pub mnemonic: String,
-    pub wallet_dir: String,
+    pub mainnet: bool,
 }
 
 #[derive(Debug, Deserialize)]
