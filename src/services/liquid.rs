@@ -19,7 +19,7 @@ pub enum LiquidRequest {
     },
     BuildTransaction {
         address: String,
-        amount: i32,
+        amount: i64,
         asset: String,
         response: oneshot::Sender<Result<PartiallySignedTransaction, ServiceError>>,
     },
@@ -65,7 +65,7 @@ impl LiquidRequestHandler {
 
     async fn build_liquid_transaction(
         &self,
-        amount: i32,
+        amount: i64,
         address: String,
         asset: String,
     ) -> Result<PartiallySignedTransaction, ServiceError> {

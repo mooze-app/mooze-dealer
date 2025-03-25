@@ -161,6 +161,7 @@ impl TransactionRequestHandler {
                 .get_transaction(&transaction_id)
                 .await
                 .map_err(|e| {
+                    dbg!(&e);
                     ServiceError::Internal(format!(
                         "Could not retrieve transaction: {}.",
                         e.to_string()
@@ -172,7 +173,7 @@ impl TransactionRequestHandler {
                     return Err(ServiceError::Database(format!(
                         "Transaction not found: {}.",
                         transaction_id
-                    )))
+                    )));
                 }
                 Some(transaction) => {
                     self.continue_with_transaction(transaction).await;
@@ -188,7 +189,8 @@ impl TransactionRequestHandler {
         transaction: transactions::Transaction,
     ) -> Result<(), ServiceError> {
         if transaction.asset == transactions::Assets::DEPIX.hex() {
-            let asset_amount = transaction.amount_in_cents * 10_i32.pow(8); // adjust precision
+            let asset_amount: i64 =
+                ((transaction.amount_in_cents as i64) / 100 * 10_i64.pow(8)) as i64; // adjust precision
             let pset = self
                 .collect_fees_and_build_transaction(transaction, asset_amount)
                 .await?;
@@ -214,12 +216,13 @@ impl TransactionRequestHandler {
     async fn collect_fees_and_build_transaction(
         &self,
         transaction: transactions::Transaction,
-        asset_amount: i32,
+        asset_amount: i64,
     ) -> Result<PartiallySignedTransaction, ServiceError> {
         let fees = self.calculate_fees(transaction.amount_in_cents);
-        let net_amount_in_cents = transaction.amount_in_cents - fees;
+        let net_amount_in_cents = (transaction.amount_in_cents - fees) as i64;
 
-        let amount_to_send = (asset_amount * net_amount_in_cents) / transaction.amount_in_cents;
+        let amount_to_send =
+            (asset_amount * net_amount_in_cents) / (transaction.amount_in_cents as i64);
         let asset_fee_amount = asset_amount - amount_to_send;
 
         let (liquid_tx, liquid_rx) = oneshot::channel();

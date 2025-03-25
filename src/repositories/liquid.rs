@@ -97,10 +97,16 @@ impl LiquidRepository {
             .await
             .tx_builder()
             .set_unvalidated_recipients(&recipients)
-            .map_err(|e| anyhow!("Failed to set transaction recipients: {e}"))?
+            .map_err(|e| {
+                dbg!(&e);
+                anyhow!("Failed to set transaction recipients: {e}")
+            })?
             .enable_ct_discount()
             .finish()
-            .map_err(|e| anyhow!("Failed to finish transaction build: {e}"))?;
+            .map_err(|e| {
+                dbg!(&e);
+                anyhow!("Failed to finish transaction build: {e}")
+            })?;
 
         Ok(tx)
     }
