@@ -2,6 +2,7 @@ use super::{RequestHandler, Service, ServiceError};
 use crate::repositories::liquid::LiquidRepository;
 
 use async_trait::async_trait;
+use log::{error, info, warn};
 use lwk_wollet::{elements::pset::PartiallySignedTransaction, UnvalidatedRecipient, WalletTxOut};
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -18,9 +19,7 @@ pub enum LiquidRequest {
         response: oneshot::Sender<Result<Vec<WalletTxOut>, ServiceError>>,
     },
     BuildTransaction {
-        address: String,
-        amount: i64,
-        asset: String,
+        recipients: Vec<UnvalidatedRecipient>,
         response: oneshot::Sender<Result<PartiallySignedTransaction, ServiceError>>,
     },
     SignTransaction {
@@ -40,6 +39,22 @@ impl LiquidRequestHandler {
             .expect("Could not instantiate Liquid Repository");
 
         Self { liquid_repository }
+    }
+
+    pub async fn start(&self) -> tokio::task::JoinHandle<()> {
+        let repository = self.liquid_repository.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(90));
+            loop {
+                interval.tick().await;
+
+                match repository.update_wallet().await {
+                    Ok(_) => info!("Wallet updated successfully"),
+                    Err(e) => error!("Error updating wallet: {}", e),
+                }
+            }
+        })
     }
 
     async fn get_new_address(&self) -> Result<String, ServiceError> {
@@ -65,18 +80,11 @@ impl LiquidRequestHandler {
 
     async fn build_liquid_transaction(
         &self,
-        amount: i64,
-        address: String,
-        asset: String,
+        recipients: Vec<UnvalidatedRecipient>,
     ) -> Result<PartiallySignedTransaction, ServiceError> {
-        let recipient = UnvalidatedRecipient {
-            satoshi: amount as u64,
-            address,
-            asset,
-        };
         let tx = self
             .liquid_repository
-            .build_transaction(vec![recipient])
+            .build_transaction(recipients)
             .await
             .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))?;
 
@@ -110,12 +118,10 @@ impl RequestHandler<LiquidRequest> for LiquidRequestHandler {
                 let _ = response.send(utxos);
             }
             LiquidRequest::BuildTransaction {
-                address,
-                amount,
-                asset,
+                recipients,
                 response,
             } => {
-                let tx = self.build_liquid_transaction(amount, address, asset).await;
+                let tx = self.build_liquid_transaction(recipients).await;
                 let _ = response.send(tx);
             }
             LiquidRequest::SignTransaction { mut pset, response } => {

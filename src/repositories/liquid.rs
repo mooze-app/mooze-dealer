@@ -87,6 +87,20 @@ impl LiquidRepository {
         }))
     }
 
+    pub async fn update_wallet(&self) -> Result<(), anyhow::Error> {
+        let mut wallet = self.wallet.write().await;
+        let mut electrum_client = self.electrum_client.write().await;
+
+        let update = electrum_client.full_scan(&*wallet)?;
+        match update {
+            Some(update) => {
+                wallet.apply_update(update)?;
+                Ok(())
+            }
+            None => return Ok(()),
+        }
+    }
+
     pub async fn build_transaction(
         &self,
         recipients: Vec<lwk_wollet::UnvalidatedRecipient>,
