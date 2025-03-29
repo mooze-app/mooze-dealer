@@ -13,3 +13,11 @@ pub struct User {
 pub struct NewUser {
     pub referral_code: Option<String>,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct UserDetails {
+    pub id: String,
+    pub daily_spending: i64,
+    pub is_first_transaction: bool,
+    pub is_verified: bool, // reserved field
+}
