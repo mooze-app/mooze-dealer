@@ -18,6 +18,22 @@ pub enum UserRequest {
         id: String,
         response: oneshot::Sender<Result<(), ServiceError>>,
     },
+    GetUserDetails {
+        id: String,
+        response: oneshot::Sender<Result<users::UserDetails, ServiceError>>,
+    },
+    GetUserDailySpending {
+        id: String,
+        response: oneshot::Sender<Result<i64, ServiceError>>,
+    },
+    IsFirstTransaction {
+        id: String,
+        response: oneshot::Sender<Result<bool, ServiceError>>,
+    },
+    GetUserReferrerAddress {
+        id: String,
+        response: oneshot::Sender<Result<Option<String>, ServiceError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -55,6 +71,52 @@ impl UserRequestHandler {
             .await
             .map_err(|e| ServiceError::Database(e.to_string()))
     }
+
+    async fn get_user_daily_spending(&self, user_id: &str) -> Result<i64, ServiceError> {
+        self.repository
+            .get_user_daily_spending(user_id)
+            .await
+            .map_err(|e| ServiceError::Database(e.to_string()))
+    }
+
+    async fn is_first_transaction(&self, user_id: &str) -> Result<bool, ServiceError> {
+        self.repository
+            .is_first_transaction(user_id)
+            .await
+            .map_err(|e| ServiceError::Database(e.to_string()))
+    }
+
+    async fn get_user_details(&self, user_id: &str) -> Result<users::UserDetails, ServiceError> {
+        let daily_spending = self.get_user_daily_spending(user_id).await?;
+        let is_first_transaction = self.is_first_transaction(user_id).await?;
+        Ok(users::UserDetails {
+            id: user_id.to_string(),
+            daily_spending,
+            is_first_transaction,
+            is_verified: false,
+        })
+    }
+
+    async fn get_user_referrer_address(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<String>, ServiceError> {
+        let referrer = self
+            .repository
+            .get_user_referrer(user_id)
+            .await
+            .map_err(|e| ServiceError::Database(e.to_string()))?;
+        if let Some(referrer) = referrer {
+            let referrer_address = self
+                .repository
+                .get_user_referral_payment_address(&referrer)
+                .await
+                .map_err(|e| ServiceError::Database(e.to_string()))?;
+            Ok(Some(referrer_address))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[async_trait]
@@ -75,6 +137,22 @@ impl RequestHandler<UserRequest> for UserRequestHandler {
             UserRequest::VerifyUser { id, response } => {
                 let result = self.verify_user(&id).await;
                 let _ = response.send(result);
+            }
+            UserRequest::GetUserDailySpending { id, response } => {
+                let spending = self.get_user_daily_spending(&id).await;
+                let _ = response.send(spending);
+            }
+            UserRequest::IsFirstTransaction { id, response } => {
+                let result = self.is_first_transaction(&id).await;
+                let _ = response.send(result);
+            }
+            UserRequest::GetUserDetails { id, response } => {
+                let details = self.get_user_details(&id).await;
+                let _ = response.send(details);
+            }
+            UserRequest::GetUserReferrerAddress { id, response } => {
+                let referrer = self.get_user_referrer_address(&id).await;
+                let _ = response.send(referrer);
             }
         }
     }
