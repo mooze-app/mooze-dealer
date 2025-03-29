@@ -81,4 +81,50 @@ impl UserRepository {
             bail!("User not found")
         }
     }
+
+    pub async fn get_user_daily_spending(&self, user_id: &str) -> Result<i64, anyhow::Error> {
+        let amount: i64 = sqlx::query_scalar(
+            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE"#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.conn)
+        .await?;
+
+        Ok(amount)
+    }
+
+    pub async fn is_first_transaction(&self, user_id: &str) -> Result<bool, anyhow::Error> {
+        let tx_count: i64 =
+            sqlx::query_scalar(r#"SELECT COUNT(1) FROM transactions WHERE user_id = $1"#)
+                .bind(user_id)
+                .fetch_one(&self.conn)
+                .await?;
+
+        Ok(tx_count == 0)
+    }
+
+    pub async fn get_user_referrer(&self, user_id: &str) -> Result<Option<String>, anyhow::Error> {
+        let user = self.get_user_by_id(user_id).await?;
+
+        if let Some(user) = user {
+            Ok(user.referred_by)
+        } else {
+            bail!("User not found")
+        }
+    }
+
+    pub async fn get_user_referral_payment_address(
+        &self,
+        user_id: &str,
+    ) -> Result<String, anyhow::Error> {
+        let referral = sqlx::query_as!(
+            referrals::Referral,
+            r#"SELECT * FROM referrals WHERE user_id = $1"#,
+            user_id
+        )
+        .fetch_one(&self.conn)
+        .await?;
+
+        Ok(referral.payment_address)
+    }
 }
