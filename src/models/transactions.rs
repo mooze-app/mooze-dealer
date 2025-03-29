@@ -23,6 +23,7 @@ pub struct NewTransaction {
     pub network: String,
 }
 
+#[derive(Debug)]
 pub enum Assets {
     DEPIX,
     USDT,
@@ -41,6 +42,15 @@ impl Assets {
             Assets::LBTC => {
                 "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d".to_string()
             }
+        }
+    }
+
+    pub fn from_hex(hex: &str) -> Result<Self, String> {
+        match hex {
+            "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189" => Ok(Assets::DEPIX),
+            "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2" => Ok(Assets::USDT),
+            "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d" => Ok(Assets::LBTC),
+            _ => Err("Invalid asset hex".to_string()),
         }
     }
 }
