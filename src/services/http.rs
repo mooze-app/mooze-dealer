@@ -16,11 +16,16 @@ use super::{
     users::{UserRequest, UserService},
     ServiceError,
 };
-use crate::models::{
-    self, pix,
-    transactions::{NewTransaction, Transaction},
-    users::NewUser,
+use crate::{
+    models::{
+        self, pix,
+        transactions::{Assets, NewTransaction, Transaction},
+        users::NewUser,
+    },
+    settings::Settings,
 };
+
+mod users;
 
 #[derive(Clone)]
 struct AppState {
@@ -40,6 +45,7 @@ async fn create_new_user(
     State(state): State<AppState>,
     Json(req): Json<NewUser>,
 ) -> impl IntoResponse {
+    log::debug!("[DEBUG] Received new user registration request");
     let (user_tx, user_rx) = oneshot::channel();
 
     let user_result = state
@@ -61,7 +67,10 @@ async fn create_new_user(
     }
 
     match user_rx.await {
-        Ok(Ok(user)) => return (StatusCode::CREATED, Json(json!({"user_id": user.id}))),
+        Ok(Ok(user)) => {
+            dbg!(&user.id);
+            return (StatusCode::CREATED, Json(json!({"user_id": user.id})));
+        }
         Ok(Err(service_error)) => {
             return (
                 StatusCode::NOT_FOUND,
@@ -85,11 +94,127 @@ async fn create_new_user(
     }
 }
 
+async fn get_user_daily_spending(
+    State(state): State<AppState>,
+    Path(user_id): Path<String>,
+) -> impl IntoResponse {
+    let (user_tx, user_rx) = oneshot::channel();
+
+    let user_result = state
+        .user_channel
+        .send(UserRequest::GetUserDailySpending {
+            id: user_id,
+            response: user_tx,
+        })
+        .await;
+    if let Err(e) = user_result {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "error": "Internal server error",
+                "details": e.to_string()
+            })),
+        );
+    }
+
+    match user_rx.await {
+        Ok(Ok(daily_spending)) => {
+            return (
+                StatusCode::OK,
+                Json(json!({"daily_spending": daily_spending})),
+            )
+        }
+        Ok(Err(service_error)) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "error": "Database error",
+                    "details": service_error.to_string()
+                })),
+            )
+        }
+        Err(e) => {
+            return {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "error": "Internal server error",
+                        "details": e.to_string()
+                    })),
+                )
+            }
+        }
+    }
+}
+
+async fn get_user_details(
+    State(state): State<AppState>,
+    Path(user_id): Path<String>,
+) -> impl IntoResponse {
+    let (user_tx, user_rx) = oneshot::channel();
+
+    let user_result = state
+        .user_channel
+        .send(UserRequest::IsFirstTransaction {
+            id: user_id,
+            response: user_tx,
+        })
+        .await;
+    if let Err(e) = user_result {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "error": "Internal server error",
+                "details": e.to_string()
+            })),
+        );
+    }
+
+    match user_rx.await {
+        Ok(Ok(daily_spending)) => {
+            return (
+                StatusCode::OK,
+                Json(json!({"is_first_transaction": daily_spending})),
+            )
+        }
+        Ok(Err(service_error)) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "error": "Database error",
+                    "details": service_error.to_string()
+                })),
+            )
+        }
+        Err(e) => {
+            return {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "error": "Internal server error",
+                        "details": e.to_string()
+                    })),
+                )
+            }
+        }
+    }
+}
+
 async fn request_new_deposit(
     State(state): State<AppState>,
     Json(req): Json<NewTransaction>,
 ) -> impl IntoResponse {
     let (transaction_tx, transaction_rx) = oneshot::channel();
+
+    if req.asset != Assets::DEPIX.hex() {
+        return (
+            StatusCode::NOT_IMPLEMENTED,
+            Json(json!({
+                "error": "Invalid asset",
+                "details": "Em breve!"
+            })),
+        );
+    }
 
     let tx_result = state
         .transaction_channel
@@ -182,9 +307,10 @@ pub async fn start_http_server(
     };
 
     let app = Router::new()
-        .route("/user", post(create_new_user))
+        .route("/register", post(create_new_user))
         .route("/deposit", post(request_new_deposit))
-        .route("/eulen_update_status", post(eulen_update_status))
+        .route("/webhook/eulen_status", post(eulen_update_status))
+        .route("/user/{user_id}", get(users::get_user_details))
         .route("/hello", get(|| async { "Hello, World!" }))
         .route("/health", get(|| async { "OK" }))
         .with_state(app_state)
