@@ -129,24 +129,6 @@ The application will start all services and listen for HTTP requests on port 808
   }
   ```
 
-### PIX Integration
-
-- **POST /eulen_update_status**: Update PIX deposit status (webhook)
-  ```json
-  {
-    "bank_tx_id": "bank_transaction_id",
-    "blockchain_tx_id": "blockchain_transaction_id",
-    "customer_message": "message",
-    "payer_name": "Payer Name",
-    "payer_tax_number": "tax_id",
-    "expiration": "expiration_date",
-    "pix_key": "pix_key",
-    "qr_id": "qr_code_id",
-    "status": "completed",
-    "value_in_cents": 10000
-  }
-  ```
-
 ### Health Check
 
 - **GET /health**: Check service health
