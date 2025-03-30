@@ -263,6 +263,7 @@ async fn eulen_update_status(
     State(state): State<AppState>,
     Json(req): Json<pix::EulenDepositStatus>,
 ) -> impl IntoResponse {
+    println!("Received request: {:?}", req);
     let (pix_tx, pix_rx) = oneshot::channel();
     let pix_result = state
         .pix_channel
