@@ -108,12 +108,14 @@ impl PriceRepository {
 
     async fn fetch_prices_from_coingecko(&self) -> Result<PriceCache, anyhow::Error> {
         let prices: serde_json::Value = reqwest::get(format!(
-            "{}/api/v3/symbol/price?ids=bitcoin,tether&vs_currencies=brl",
+            "{}/api/v3/simple/price?ids=bitcoin,tether&vs_currencies=brl",
             self.coingecko_url
         ))
         .await?
         .json()
         .await?;
+
+        log::info!("Fetched prices from Coingecko: {:?}", prices);
 
         let bitcoin = prices["bitcoin"]["brl"].as_f64().map(|v| v);
         let usdt = prices["tether"]["brl"].as_f64().map(|v| v);
@@ -129,6 +131,9 @@ impl PriceRepository {
         .await?
         .json()
         .await?;
+
+        log::info!("Fetched prices from Binance: {:?}", prices);
+
         let bitcoin = prices
             .iter()
             .find(|p| p["symbol"] == "BTCBRL")
