@@ -10,7 +10,7 @@ use lwk_wollet::{
     blocking::BlockchainBackend,
     elements::{pset::PartiallySignedTransaction, TxOut, Txid},
     full_scan_with_electrum_client, ElectrumClient, ElectrumUrl, ElementsNetwork, FsPersister,
-    WalletTxOut, Wollet,
+    NoPersist, WalletTxOut, Wollet,
 };
 
 trait SignerExt {
@@ -65,8 +65,8 @@ impl LiquidRepository {
 
         let electrum_url =
             ElectrumUrl::new(&electrum_url, true, true).expect("Invalid Electrum URL.");
-        let mut wallet =
-            Wollet::new(network, persister, descriptor).expect("Could not initialize wallet.");
+        let mut wallet = Wollet::new(network, NoPersist::new(), descriptor)
+            .expect("Could not initialize wallet.");
         let mut electrum_client =
             ElectrumClient::new(&electrum_url).expect("Could not connect to Electrum server.");
 
