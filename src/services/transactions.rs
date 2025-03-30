@@ -163,6 +163,8 @@ impl TransactionRequestHandler {
                     ))
                 })?;
 
+            dbg!("Entered eulen_depix_sent");
+
             match transaction {
                 None => {
                     return Err(ServiceError::Database(format!(
@@ -171,13 +173,33 @@ impl TransactionRequestHandler {
                     )));
                 }
                 Some(transaction) => {
-                    let pset = self.continue_with_transaction(transaction).await?;
-                    self.finalize_transaction(pset).await?;
+                    self.finish_transaction(transaction).await?;
                 }
             }
         }
 
         Ok(transaction_id.clone())
+    }
+
+    async fn finish_transaction(
+        &self,
+        transaction: transactions::Transaction,
+    ) -> Result<(), ServiceError> {
+        let pset = self.continue_with_transaction(transaction.clone()).await?;
+        let signed_pset = self
+            .sign_transaction(pset)
+            .await
+            .map_err(|e| ServiceError::Internal(format!("Could not sign transaction: {}", e)))?;
+        let txid = self.finalize_transaction(signed_pset).await?;
+
+        self.repository
+            .update_transaction_status(&transaction.id, &"finished".to_string())
+            .await
+            .map_err(|e| {
+                ServiceError::Database(format!("Could not update transaction status: {}", e))
+            })?;
+
+        Ok(())
     }
 
     async fn request_asset_price(&self, asset: &String) -> Result<u64, ServiceError> {
@@ -288,6 +310,7 @@ impl TransactionRequestHandler {
         };
 
         let amount_to_send_user = asset_amount - fee_in_asset - referral_bonus;
+        dbg!("{:?}", transaction.address.clone());
         let user_recipient = UnvalidatedRecipient {
             address: transaction.address,
             satoshi: amount_to_send_user,
@@ -326,6 +349,30 @@ impl TransactionRequestHandler {
         Ok(pset)
     }
 
+    async fn sign_transaction(
+        &self,
+        mut pset: PartiallySignedTransaction,
+    ) -> Result<PartiallySignedTransaction, anyhow::Error> {
+        let (liquid_tx, liquid_rx) = oneshot::channel();
+        self.liquid_channel
+            .send(LiquidRequest::SignTransaction {
+                pset,
+                response: liquid_tx,
+            })
+            .await
+            .map_err(|e| {
+                log::error!("{:?}", e);
+                ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
+            })?;
+
+        let signed_pset = liquid_rx.await.map_err(|e| {
+            log::error!("{:?}", e);
+            ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
+        })??;
+
+        Ok(signed_pset)
+    }
+
     async fn finalize_transaction(
         &self,
         pset: PartiallySignedTransaction,
@@ -346,6 +393,8 @@ impl TransactionRequestHandler {
             log::error!("{:?}", e);
             ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
         })??;
+
+        log::info!("Finished transaction: {}", txid);
 
         Ok(())
     }

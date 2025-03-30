@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use std::sync::Arc;
+use std::{any::Any, error::Error, sync::Arc};
 use tokio::sync::RwLock;
 
 use anyhow::{anyhow, bail};
@@ -105,22 +105,29 @@ impl LiquidRepository {
         &self,
         recipients: Vec<lwk_wollet::UnvalidatedRecipient>,
     ) -> Result<PartiallySignedTransaction, anyhow::Error> {
-        let tx = self
-            .wallet
-            .read()
-            .await
-            .tx_builder()
-            .set_unvalidated_recipients(&recipients)
-            .map_err(|e| {
-                dbg!(&e);
-                anyhow!("Failed to set transaction recipients: {e}")
-            })?
-            .enable_ct_discount()
-            .finish()
-            .map_err(|e| {
-                dbg!(&e);
-                anyhow!("Failed to finish transaction build: {e}")
-            })?;
+        let validated_recipients = recipients
+            .into_iter()
+            .map(|recipient| recipient.validate(self.network))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let wallet_guard = self.wallet.read().await;
+        let mut tx_builder = wallet_guard.tx_builder();
+
+        for recipient in validated_recipients {
+            tx_builder = tx_builder.add_validated_recipient(recipient);
+        }
+
+        let tx = tx_builder.finish().map_err(|e| {
+            dbg!(&e);
+            anyhow!("Failed to finish transaction build: {e}")
+        })?;
+
+        let sanity_check = tx.sanity_check();
+
+        if !sanity_check.is_ok() {
+            dbg!("{:?}", sanity_check.unwrap_err());
+            return Err(anyhow!("Transaction sanity check failed"));
+        }
 
         Ok(tx)
     }
@@ -129,12 +136,12 @@ impl LiquidRepository {
         &self,
         mut pset: PartiallySignedTransaction,
     ) -> Result<PartiallySignedTransaction, anyhow::Error> {
-        self.signer
+        let count = self
+            .signer
             .sign(&mut pset)
             .map_err(|e| anyhow!("Failed to sign transaction: {e}"))?; // mutates pset in-place, copy it to return to caller if needed
 
-        let signed_pset = pset.clone();
-        Ok(signed_pset)
+        Ok(pset)
     }
 
     pub async fn finalize_and_broadcast_transaction(
@@ -144,16 +151,18 @@ impl LiquidRepository {
         let wallet = self.wallet.read().await;
         let client = self.electrum_client.read().await;
 
-        let tx = wallet
-            .finalize(&mut pset)
-            .map_err(|e| anyhow!("Could not finalize transaction: {e}"))?;
+        let tx = wallet.finalize(&mut pset).map_err(|e| {
+            log::error!("{}", e.to_string());
+            anyhow!("Could not finalize transaction: {e}")
+        })?;
 
-        let txid = client
-            .broadcast(&tx)
-            .map_err(|e| anyhow!("Could not broadcast transaction: {e}"))?;
+        let txid = client.broadcast(&tx).map_err(|e| {
+            log::error!("{}", e.to_string());
+            anyhow!("Could not broadcast transaction: {e}")
+        })?;
 
         let txid_string = txid.to_string();
-        println!("{}", &txid_string);
+        log::info!("TXID: {}", txid_string);
 
         Ok(txid_string)
     }

@@ -265,6 +265,8 @@ async fn eulen_update_status(
 ) -> impl IntoResponse {
     println!("Received request: {:?}", req);
     let (pix_tx, pix_rx) = oneshot::channel();
+
+    dbg!("Initialized oneshot channel");
     let pix_result = state
         .pix_channel
         .send(PixServiceRequest::UpdateEulenStatus {
@@ -274,6 +276,7 @@ async fn eulen_update_status(
         .await;
 
     if let Err(e) = pix_result {
+        dbg!("Failed to send to PIX channel");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"description": format!("Failed to process request: {}", e)})),
