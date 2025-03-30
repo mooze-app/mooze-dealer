@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use super::liquid::LiquidRequest;
 use super::pix::PixServiceRequest;
 use super::price::PriceRequest;
@@ -11,7 +13,8 @@ use futures_util::TryFutureExt;
 use lwk_wollet::elements::pset::PartiallySignedTransaction;
 use lwk_wollet::UnvalidatedRecipient;
 use sqlx::PgPool;
-use tokio::sync::{mpsc, oneshot};
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::RequestHandler;
 use super::Service;
@@ -32,6 +35,13 @@ pub enum TransactionServiceRequest {
     },
 }
 
+#[derive(Clone, Debug)]
+struct PendingTransaction {
+    transaction: transactions::Transaction,
+    attempts: u32,
+    last_attempt: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Clone)]
 pub struct TransactionRequestHandler {
     repository: TransactionRepository,
@@ -39,6 +49,7 @@ pub struct TransactionRequestHandler {
     pix_channel: mpsc::Sender<PixServiceRequest>,
     price_channel: mpsc::Sender<PriceRequest>,
     user_channel: mpsc::Sender<UserRequest>,
+    pending_transactions: Arc<Mutex<VecDeque<PendingTransaction>>>,
 }
 
 impl TransactionRequestHandler {
@@ -50,14 +61,160 @@ impl TransactionRequestHandler {
         user_channel: mpsc::Sender<UserRequest>,
     ) -> Self {
         let repository = TransactionRepository::new(sql_conn);
+        let pending_transactions = Arc::new(Mutex::new(VecDeque::new()));
 
-        TransactionRequestHandler {
+        let handler = TransactionRequestHandler {
             repository,
             liquid_channel,
             pix_channel,
             price_channel,
             user_channel,
+            pending_transactions,
+        };
+
+        handler.start_pending_transaction_processor();
+
+        handler
+    }
+
+    fn start_pending_transaction_processor(&self) {
+        let handler_clone = self.clone();
+
+        tokio::spawn(async move {
+            let mut check_interval = tokio::time::interval(tokio::time::Duration::from_secs(60)); // Check every minute
+
+            loop {
+                check_interval.tick().await;
+                handler_clone.process_pending_transactions().await;
+            }
+        });
+    }
+
+    async fn process_pending_transactions(&self) {
+        let mut pending_txs = self.pending_transactions.lock().await;
+
+        if pending_txs.is_empty() {
+            return;
         }
+
+        log::info!("Processing {} pending transactions", pending_txs.len());
+
+        // Take transactions from the queue to process
+        let mut transactions_to_process = Vec::new();
+        while let Some(pending_tx) = pending_txs.pop_front() {
+            transactions_to_process.push(pending_tx);
+        }
+
+        // Release the lock before processing
+        drop(pending_txs);
+
+        for pending_tx in transactions_to_process {
+            log::info!(
+                "Attempting to process pending transaction {} (attempt: {})",
+                pending_tx.transaction.id,
+                pending_tx.attempts + 1
+            );
+
+            // Check if we can now process this transaction
+            match self.check_asset_balance(&pending_tx.transaction).await {
+                Ok(true) => {
+                    // We have sufficient balance, try to process the transaction
+                    match self
+                        .finish_transaction(pending_tx.transaction.clone())
+                        .await
+                    {
+                        Ok(_) => {
+                            log::info!(
+                                "Successfully processed pending transaction {}",
+                                pending_tx.transaction.id
+                            );
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Failed to process pending transaction {}: {}",
+                                pending_tx.transaction.id,
+                                e
+                            );
+                            // Put it back in the queue with increased attempt count
+                            let mut pending_txs = self.pending_transactions.lock().await;
+                            pending_txs.push_back(PendingTransaction {
+                                transaction: pending_tx.transaction,
+                                attempts: pending_tx.attempts + 1,
+                                last_attempt: chrono::Utc::now(),
+                            });
+                        }
+                    }
+                }
+                Ok(false) => {
+                    // Still insufficient balance, put it back in the queue
+                    let mut pending_txs = self.pending_transactions.lock().await;
+                    pending_txs.push_back(PendingTransaction {
+                        transaction: pending_tx.transaction,
+                        attempts: pending_tx.attempts + 1,
+                        last_attempt: chrono::Utc::now(),
+                    });
+                }
+                Err(e) => {
+                    log::error!(
+                        "Error checking balance for pending transaction {}: {}",
+                        pending_tx.transaction.id,
+                        e
+                    );
+                    // Put it back in the queue
+                    let mut pending_txs = self.pending_transactions.lock().await;
+                    pending_txs.push_back(PendingTransaction {
+                        transaction: pending_tx.transaction,
+                        attempts: pending_tx.attempts + 1,
+                        last_attempt: chrono::Utc::now(),
+                    });
+                }
+            }
+        }
+    }
+
+    async fn check_asset_balance(
+        &self,
+        transaction: &transactions::Transaction,
+    ) -> Result<bool, ServiceError> {
+        let asset_price_in_cents = self.request_asset_price(&transaction.asset).await?;
+
+        // Calculate asset amount with precision already included
+        let asset_amount =
+            (transaction.amount_in_cents as u64 * 10_u64.pow(8)) / asset_price_in_cents;
+
+        let referral_addr = self.check_for_referral(&transaction.user_id).await?;
+        let fee_in_asset = self.calculate_fee_amount(
+            transaction.amount_in_cents as u64,
+            asset_price_in_cents,
+            referral_addr.is_some(),
+        );
+
+        let referral_bonus = if let Some(_) = &referral_addr {
+            (transaction.amount_in_cents as u64 * 50 * 10_u64.pow(8)) / 10000 / asset_price_in_cents
+        } else {
+            0
+        };
+
+        // Calculate total amount needed
+        let total_needed = asset_amount;
+
+        // Check current balance
+        let (liquid_tx, liquid_rx) = oneshot::channel();
+        self.liquid_channel
+            .send(LiquidRequest::GetAssetBalance {
+                asset_id: transaction.asset.clone(),
+                response: liquid_tx,
+            })
+            .await
+            .map_err(|e| {
+                ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
+            })?;
+
+        let balance = liquid_rx.await.map_err(|e| {
+            ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
+        })??;
+
+        Ok(balance >= total_needed)
     }
 
     async fn new_transaction(
@@ -173,7 +330,23 @@ impl TransactionRequestHandler {
                     )));
                 }
                 Some(transaction) => {
-                    self.finish_transaction(transaction).await?;
+                    match self.finish_transaction(transaction).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            // If the error is due to insufficient balance, we'll just log it
+                            // The transaction was already added to the pending queue in finish_transaction
+                            if let ServiceError::Internal(msg) = &e {
+                                if msg == "InsufficientBalance" {
+                                    log::warn!(
+                                        "Transaction {} queued due to insufficient balance",
+                                        transaction_id
+                                    );
+                                    return Ok(transaction_id.clone());
+                                }
+                            }
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }
@@ -290,6 +463,27 @@ impl TransactionRequestHandler {
         &self,
         transaction: transactions::Transaction,
     ) -> Result<PartiallySignedTransaction, ServiceError> {
+        // First check if we have sufficient balance
+        if let Ok(has_sufficient_balance) = self.check_asset_balance(&transaction).await {
+            if !has_sufficient_balance {
+                log::warn!(
+                    "Insufficient balance for transaction {}, adding to pending queue",
+                    transaction.id
+                );
+
+                // Add to pending transactions queue
+                let mut pending_txs = self.pending_transactions.lock().await;
+                pending_txs.push_back(PendingTransaction {
+                    transaction: transaction.clone(),
+                    attempts: 0,
+                    last_attempt: chrono::Utc::now(),
+                });
+
+                return Err(ServiceError::Internal("InsufficientBalance".to_string()));
+            }
+        }
+
+        // Continue with the original implementation for the sufficient balance case
         let asset_price_in_cents = self.request_asset_price(&transaction.asset).await?;
 
         // Calculate asset amount with precision already included
@@ -310,7 +504,6 @@ impl TransactionRequestHandler {
         };
 
         let amount_to_send_user = asset_amount - fee_in_asset - referral_bonus;
-        dbg!("{:?}", transaction.address.clone());
         let user_recipient = UnvalidatedRecipient {
             address: transaction.address,
             satoshi: amount_to_send_user,

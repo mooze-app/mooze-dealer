@@ -209,4 +209,20 @@ impl LiquidRepository {
 
         Ok(utxos)
     }
+
+    pub async fn get_asset_balance(&self, asset_id: &str) -> Result<u64, anyhow::Error> {
+        let wallet = self.wallet.read().await;
+        let balances = wallet
+            .balance()
+            .map_err(|e| anyhow!("Failed to fetch balances: {e}"))?;
+
+        for (asset, balance) in balances {
+            if asset.to_string() == asset_id {
+                return Ok(balance);
+            }
+        }
+
+        // If the asset is not found, return 0 balance
+        Ok(0)
+    }
 }

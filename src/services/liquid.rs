@@ -18,6 +18,10 @@ pub enum LiquidRequest {
         asset: Option<String>,
         response: oneshot::Sender<Result<Vec<WalletTxOut>, ServiceError>>,
     },
+    GetAssetBalance {
+        asset_id: String,
+        response: oneshot::Sender<Result<u64, ServiceError>>,
+    },
     BuildTransaction {
         recipients: Vec<UnvalidatedRecipient>,
         response: oneshot::Sender<Result<PartiallySignedTransaction, ServiceError>>,
@@ -59,6 +63,13 @@ impl LiquidRequestHandler {
                 }
             }
         })
+    }
+
+    async fn get_asset_balance(&self, asset_id: &String) -> Result<u64, ServiceError> {
+        self.liquid_repository
+            .get_asset_balance(asset_id)
+            .await
+            .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))
     }
 
     async fn get_new_address(&self) -> Result<String, ServiceError> {
@@ -130,6 +141,10 @@ impl RequestHandler<LiquidRequest> for LiquidRequestHandler {
             LiquidRequest::GetUtxos { asset, response } => {
                 let utxos = self.get_utxos(asset).await;
                 let _ = response.send(utxos);
+            }
+            LiquidRequest::GetAssetBalance { asset_id, response } => {
+                let balance = self.get_asset_balance(&asset_id).await;
+                let _ = response.send(balance);
             }
             LiquidRequest::BuildTransaction {
                 recipients,
