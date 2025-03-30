@@ -37,10 +37,17 @@ pub struct Wallet {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct PriceProviders {
+    pub binance_url: String,
+    pub coingecko_url: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub postgres: Postgres,
     pub electrum: Electrum,
     pub depix: Depix,
+    pub price_providers: PriceProviders,
     pub sideswap: Sideswap,
     pub wallet: Wallet,
 }
