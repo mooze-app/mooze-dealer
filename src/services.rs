@@ -9,6 +9,9 @@ mod database;
 mod http;
 mod liquid;
 mod pix;
+mod price;
+mod sideswap;
+mod swap;
 mod transactions;
 mod users;
 
@@ -55,23 +58,29 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
     let (transaction_tx, mut transaction_rx) = mpsc::channel(512);
     let (liquid_tx, mut liquid_rx) = mpsc::channel(512);
     let (pix_tx, mut pix_rx) = mpsc::channel(512);
+    let (price_tx, mut price_rx) = mpsc::channel(512);
     let (user_tx, mut user_rx) = mpsc::channel(512);
 
     let mut transaction_service = transactions::TransactionService::new();
     let mut liquid_service = liquid::LiquidService::new();
+    let mut price_service = price::PriceService::new();
     let mut pix_service = pix::PixService::new();
     let mut user_service = users::UserService::new();
 
     println!("[*] Starting transaction service.");
     let tx_pool_clone = pool.clone();
     let transaction_pix_tx = pix_tx.clone();
+    let transaction_price_tx = price_tx.clone();
+    let transaction_user_tx = user_tx.clone();
     tokio::spawn(async move {
         transaction_service
             .run(
                 transactions::TransactionRequestHandler::new(
                     tx_pool_clone.clone(),
                     liquid_tx.clone(),
-                    transaction_pix_tx.clone(),
+                    transaction_pix_tx,
+                    transaction_price_tx,
+                    transaction_user_tx,
                 ),
                 &mut transaction_rx,
             )
@@ -80,16 +89,14 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
 
     println!("[*] Starting Liquid service.");
     tokio::spawn(async move {
-        liquid_service
-            .run(
-                liquid::LiquidRequestHandler::new(
-                    settings.wallet.mnemonic,
-                    settings.electrum.url,
-                    settings.wallet.mainnet,
-                ),
-                &mut liquid_rx,
-            )
-            .await;
+        let handler = liquid::LiquidRequestHandler::new(
+            settings.wallet.mnemonic,
+            settings.electrum.url,
+            settings.wallet.mainnet,
+        );
+
+        handler.start().await;
+        liquid_service.run(handler, &mut liquid_rx).await;
     });
 
     println!("[*] Starting Pix service.");
@@ -107,6 +114,17 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
                 &mut pix_rx,
             )
             .await;
+    });
+
+    println!("[*] Starting price service.");
+    tokio::spawn(async move {
+        let handler = price::PriceRequestHandler::new(
+            settings.price_providers.binance_url,
+            settings.price_providers.coingecko_url,
+        );
+        handler.start_price_fetch_task().await;
+
+        price_service.run(handler, &mut price_rx).await;
     });
 
     println!("[*] Starting user service.");
