@@ -140,7 +140,7 @@ impl LiquidRepository {
     pub async fn finalize_and_broadcast_transaction(
         &self,
         mut pset: PartiallySignedTransaction,
-    ) -> Result<Txid, anyhow::Error> {
+    ) -> Result<String, anyhow::Error> {
         let wallet = self.wallet.read().await;
         let client = self.electrum_client.read().await;
 
@@ -152,7 +152,10 @@ impl LiquidRepository {
             .broadcast(&tx)
             .map_err(|e| anyhow!("Could not broadcast transaction: {e}"))?;
 
-        Ok(txid)
+        let txid_string = txid.to_string();
+        println!("{}", &txid_string);
+
+        Ok(txid_string)
     }
 
     pub async fn generate_address(&self) -> Result<String, anyhow::Error> {
