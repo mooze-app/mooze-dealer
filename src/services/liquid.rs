@@ -53,7 +53,7 @@ impl LiquidRequestHandler {
         let repository = self.liquid_repository.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(90));
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
             loop {
                 interval.tick().await;
 
