@@ -1,3 +1,4 @@
+use clap::Parser;
 use log::{debug, info};
 use log4rs;
 use sqlx::postgres::PgPoolOptions;
@@ -10,14 +11,23 @@ pub mod services;
 pub mod settings;
 pub mod utils;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value = "config.toml")]
+    config: String,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+
     init_logging().unwrap(); // should not fail
 
     info!("Starting Mooze dealer service.");
     debug!("Loading configuration");
 
-    let config = settings::Settings::new().expect("Could not load config file.");
+    let config = settings::Settings::new(&args.config).expect("Could not load config file.");
 
     info!(
         "Connecting to PostgreSQL database at {}",
