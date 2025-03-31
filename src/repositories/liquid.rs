@@ -74,11 +74,6 @@ impl LiquidRepository {
 
         let balances = wallet.balance().expect("Could not get balances.");
 
-        println!("[INFO] Wallet sync completed. Balance: ");
-        for (asset, balance) in balances {
-            println!("Asset: {}, Balance: {}", asset, balance);
-        }
-
         Ok(Arc::new(LiquidRepository {
             signer,
             wallet: RwLock::new(wallet),
@@ -118,14 +113,14 @@ impl LiquidRepository {
         }
 
         let tx = tx_builder.finish().map_err(|e| {
-            dbg!(&e);
+            log::error!("{:?}", e.to_string());
             anyhow!("Failed to finish transaction build: {e}")
         })?;
 
         let sanity_check = tx.sanity_check();
 
         if !sanity_check.is_ok() {
-            dbg!("{:?}", sanity_check.unwrap_err());
+            log::error!("{:?}", sanity_check.unwrap_err());
             return Err(anyhow!("Transaction sanity check failed"));
         }
 
