@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use std::{any::Any, error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use anyhow::{anyhow, bail};
@@ -8,7 +8,7 @@ use lwk_signer::SwSigner;
 use lwk_wollet::{
     self,
     blocking::BlockchainBackend,
-    elements::{pset::PartiallySignedTransaction, TxOut, Txid},
+    elements::pset::PartiallySignedTransaction,
     full_scan_with_electrum_client, ElectrumClient, ElectrumUrl, ElementsNetwork, FsPersister,
     NoPersist, WalletTxOut, Wollet,
 };

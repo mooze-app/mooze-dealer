@@ -2,14 +2,11 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post, put},
-    Json, Router,
+    Json,
 };
-use serde::Serialize;
 use serde_json::json;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
-use crate::models::users;
 use crate::services::users::UserRequest;
 
 pub async fn get_user_details(

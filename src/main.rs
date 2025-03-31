@@ -1,4 +1,4 @@
-use log::{debug, error, info, warn};
+use log::{debug, info};
 use log4rs;
 use sqlx::postgres::PgPoolOptions;
 use std::fs;

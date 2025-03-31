@@ -1,11 +1,11 @@
 use crate::{
-    models::transactions::Assets, repositories::price::PriceRepository, settings::Settings,
+    models::transactions::Assets, repositories::price::PriceRepository,
 };
 
-use super::{transactions::TransactionService, RequestHandler, Service, ServiceError};
+use super::{RequestHandler, Service, ServiceError};
 
 use async_trait::async_trait;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 pub enum PriceRequest {
     GetPrice {

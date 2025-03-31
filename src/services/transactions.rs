@@ -544,7 +544,7 @@ impl TransactionRequestHandler {
 
     async fn sign_transaction(
         &self,
-        mut pset: PartiallySignedTransaction,
+        pset: PartiallySignedTransaction,
     ) -> Result<PartiallySignedTransaction, anyhow::Error> {
         let (liquid_tx, liquid_rx) = oneshot::channel();
         self.liquid_channel

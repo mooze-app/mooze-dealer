@@ -1,9 +1,8 @@
-use reqwest::Client;
 use serde_json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::{models::transactions::Assets, settings::Settings};
+use crate::models::transactions::Assets;
 
 #[derive(Clone)]
 struct PriceCache {

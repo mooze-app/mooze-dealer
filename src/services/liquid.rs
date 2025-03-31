@@ -2,7 +2,7 @@ use super::{liquidity::LiquidityRequest, RequestHandler, Service, ServiceError};
 use crate::repositories::liquid::LiquidRepository;
 
 use async_trait::async_trait;
-use log::{error, info, warn};
+use log::{error, info};
 use lwk_wollet::{elements::pset::PartiallySignedTransaction, UnvalidatedRecipient, WalletTxOut};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
@@ -137,7 +137,7 @@ impl LiquidRequestHandler {
 
     async fn sign_transaction(
         &self,
-        mut pset: PartiallySignedTransaction,
+        pset: PartiallySignedTransaction,
     ) -> Result<PartiallySignedTransaction, ServiceError> {
         self.liquid_repository
             .sign_transaction(pset)
@@ -146,7 +146,7 @@ impl LiquidRequestHandler {
 
     async fn finalize_transaction(
         &self,
-        mut pset: PartiallySignedTransaction,
+        pset: PartiallySignedTransaction,
     ) -> Result<String, ServiceError> {
         self.liquid_repository
             .finalize_and_broadcast_transaction(pset)
@@ -182,11 +182,11 @@ impl RequestHandler<LiquidRequest> for LiquidRequestHandler {
                 let tx = self.build_liquid_transaction(recipients).await;
                 let _ = response.send(tx);
             }
-            LiquidRequest::SignTransaction { mut pset, response } => {
+            LiquidRequest::SignTransaction { pset, response } => {
                 let signed_pset = self.sign_transaction(pset).await;
                 let _ = response.send(signed_pset);
             }
-            LiquidRequest::FinalizeTransaction { mut pset, response } => {
+            LiquidRequest::FinalizeTransaction { pset, response } => {
                 let finalized_pset = self.finalize_transaction(pset).await;
                 let _ = response.send(finalized_pset);
             }

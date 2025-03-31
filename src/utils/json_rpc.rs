@@ -64,7 +64,10 @@ impl JsonRpcClient {
                 };
 
                 let value: serde_json::Value = match serde_json::from_str(&text) {
-                    Ok(val) => val,
+                    Ok(val) => {
+                        log::info!("WSS received: {}", val);
+                        val
+                    }
                     Err(e) => {
                         eprintln!("Error parsing JSON: {} in text: {}", e, text);
                         continue;

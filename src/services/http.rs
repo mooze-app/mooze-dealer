@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Serialize;
@@ -13,17 +13,13 @@ use tower_http::trace::TraceLayer;
 use super::{
     pix::PixServiceRequest,
     transactions::TransactionServiceRequest,
-    users::{UserRequest, UserService},
-    ServiceError,
+    users::UserRequest,
 };
-use crate::{
-    models::{
-        self, pix,
-        transactions::{Assets, NewTransaction, Transaction},
+use crate::models::{
+        pix,
+        transactions::{Assets, NewTransaction},
         users::NewUser,
-    },
-    settings::Settings,
-};
+    };
 
 mod users;
 

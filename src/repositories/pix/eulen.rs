@@ -1,5 +1,5 @@
 use crate::models::pix;
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use reqwest;
 use serde_json::json;
 use uuid::Uuid;

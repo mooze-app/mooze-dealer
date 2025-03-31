@@ -2,9 +2,8 @@ use std::str::FromStr;
 
 use super::{liquid::LiquidRequest, RequestHandler, Service, ServiceError};
 
-use crate::models::sideswap::{AssetPair, QuoteRequest, SideswapUtxo, StartQuotes, TradeDir};
 use crate::models::sideswap::{AssetType, QuoteStatus};
-use anyhow::{anyhow, bail};
+use crate::models::sideswap::{QuoteRequest, SideswapUtxo, TradeDir};
 use async_trait::async_trait;
 use lwk_wollet::elements::pset::PartiallySignedTransaction;
 use tokio::sync::{mpsc, oneshot};
@@ -44,9 +43,11 @@ impl SideswapRequestHandler {
         liquid_channel: mpsc::Sender<LiquidRequest>,
         client_channel: mpsc::Sender<SideswapRequest>,
     ) -> Self {
-        let client =
+        let mut client =
             client::SideswapClient::new(sideswap_url, sideswap_api_key.to_string(), client_channel)
                 .await;
+
+        let _ = client.start().await;
 
         Self {
             client,

@@ -1,8 +1,7 @@
-use crate::settings::Settings;
 
 use super::{
-    sideswap::{SideswapMessage, SideswapRequest},
-    RequestHandler, Service, ServiceError,
+    sideswap::SideswapRequest,
+    RequestHandler, Service,
 };
 
 use async_trait::async_trait;

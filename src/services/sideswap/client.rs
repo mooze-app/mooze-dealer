@@ -1,9 +1,9 @@
-use super::{SideswapMessage, SideswapNotification, SideswapRequest};
+use super::SideswapRequest;
 use crate::models::sideswap::ListMarkets;
 use crate::utils::json_rpc::JsonRpcClient;
-use crate::{models::sideswap, utils::json_rpc};
+use crate::models::sideswap;
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;

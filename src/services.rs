@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use liquid::LiquidRequest;
 use sqlx::PgPool;
 use tokio::sync::mpsc;
 
