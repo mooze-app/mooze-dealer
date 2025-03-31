@@ -1,19 +1,22 @@
+use std::str::FromStr;
+
 use super::{liquid::LiquidRequest, RequestHandler, Service, ServiceError};
 
 use crate::models::sideswap::{AssetPair, QuoteRequest, SideswapUtxo, StartQuotes, TradeDir};
 use crate::models::sideswap::{AssetType, QuoteStatus};
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
+use lwk_wollet::elements::pset::PartiallySignedTransaction;
 use tokio::sync::{mpsc, oneshot};
 
 mod client;
 
-enum SideswapMessage {
+pub enum SideswapMessage {
     Request(SideswapRequest),
     Notification(SideswapNotification),
 }
 
-enum SideswapNotification {
+pub enum SideswapNotification {
     Quote {
         quote_sub_id: i64,
         status: QuoteStatus,
@@ -207,7 +210,7 @@ impl SideswapRequestHandler {
         }
     }
 
-    async fn proceed_with_quote(&self, quote_sub_id: u64, quote: QuoteStatus) {
+    async fn proceed_with_quote(&self, quote: QuoteStatus) {
         match quote {
             QuoteStatus::LowBalance {
                 base_amount,
@@ -222,9 +225,11 @@ impl SideswapRequestHandler {
                     Base amount: {base_amount}, Quote amount: {quote_amount}, Server fee: {server_fee}, Fixed fee: {fixed_fee}, Available: {available}
                     "
                 );
+                self.client.stop_quotes().await;
             }
             QuoteStatus::Error { error_msg } => {
                 log::warn!("Sideswap error: {error_msg}");
+                self.client.stop_quotes().await;
             }
             QuoteStatus::Success {
                 quote_id,
@@ -233,7 +238,21 @@ impl SideswapRequestHandler {
                 server_fee,
                 fixed_fee,
                 ttl,
-            } => {}
+            } => {
+                log::info!("Received quote: id={quote_id}, base_amount={base_amount}, quote_amount={quote_amount}, server_fee={server_fee}, fixed_fee={fixed_fee}, ttl={ttl}");
+                let txid = self
+                    .finish_swap(quote_id, base_amount, quote_amount, fixed_fee, ttl)
+                    .await;
+
+                match txid {
+                    Ok(txid) => {
+                        log::info!("Swap completed successfully: txid={txid}");
+                    }
+                    Err(err) => {
+                        log::error!("Failed to complete swap: {}", err);
+                    }
+                }
+            }
         }
     }
 
@@ -244,13 +263,54 @@ impl SideswapRequestHandler {
         quote_amount: u64,
         fixed_fee: u64,
         ttl: u64,
-    ) -> Result<(), ServiceError> {
-        let pset = self.client.get_quote_pset(quote_id).await.map_err(|e| {
+    ) -> Result<String, ServiceError> {
+        let (liquid_tx, liquid_rx) = oneshot::channel();
+        let quote_pset = self.client.get_quote_pset(quote_id).await.map_err(|e| {
             log::error!("Failed to get quote pset: {}", e);
-            ServiceError::Repository("Sideswap".to_string(), e.to_string())
+            ServiceError::ExternalService(
+                "Sideswap".to_string(),
+                "wss://api.sideswap.io/".to_string(),
+                e.to_string(),
+            )
         })?;
 
-        Ok(())
+        let pset: PartiallySignedTransaction =
+            PartiallySignedTransaction::from_str(&quote_pset.pset).map_err(|e| {
+                log::error!("Failed to parse pset: {}", e);
+                ServiceError::Repository("Sideswap".to_string(), e.to_string())
+            })?;
+
+        self.liquid_channel
+            .send(LiquidRequest::SignTransaction {
+                pset,
+                response: liquid_tx,
+            })
+            .await
+            .map_err(|e| {
+                log::error!("Failed to send sign transaction request: {}", e);
+                ServiceError::Communication("Sideswap => Liquid".to_string(), e.to_string())
+            })?;
+
+        let signed_pset = liquid_rx.await.map_err(|e| {
+            log::error!("Failed to receive signed transaction: {}", e);
+            ServiceError::Communication("Sideswap => Liquid".to_string(), e.to_string())
+        })??;
+        let serialized_signed_pset = signed_pset.to_string();
+
+        let txid = self
+            .client
+            .sign_quote(quote_id, serialized_signed_pset)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to sign quote: {}", e);
+                ServiceError::ExternalService(
+                    "Sideswap".to_string(),
+                    "wss://api.sideswap.io/".to_string(),
+                    e.to_string(),
+                )
+            })?;
+
+        Ok(txid.txid)
     }
 }
 
@@ -273,7 +333,9 @@ impl RequestHandler<SideswapMessage> for SideswapRequestHandler {
                 SideswapNotification::Quote {
                     quote_sub_id,
                     status,
-                } => {}
+                } => {
+                    let _ = self.proceed_with_quote(status);
+                }
             },
         }
     }

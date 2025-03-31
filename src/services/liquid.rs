@@ -60,7 +60,18 @@ impl LiquidRequestHandler {
                 match repository.update_wallet().await {
                     Ok(_) => info!("Wallet updated successfully"),
                     Err(e) => error!("Error updating wallet: {}", e),
-                }
+                };
+
+                let depix_amount = repository
+                    .get_asset_balance(
+                        "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189",
+                    )
+                    .await;
+
+                match depix_amount {
+                    Ok(amount) => {}
+                    Err(e) => error!("Error getting DEPIX balance: {}", e),
+                };
             }
         })
     }

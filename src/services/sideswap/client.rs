@@ -122,6 +122,13 @@ impl SideswapClient {
         }
     }
 
+    pub async fn stop_quotes(&self) {
+        let _ = self
+            .client
+            .call_method("market", Some(json!({"stop_quotes": {}})))
+            .await;
+    }
+
     pub async fn get_quote_pset(&self, quote_id: u64) -> Result<sideswap::Quote, anyhow::Error> {
         let result: Result<sideswap::Quote, anyhow::Error> = call_sideswap_api!(
             self,

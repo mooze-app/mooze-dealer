@@ -1,4 +1,5 @@
 use super::{sideswap::SideswapRequest, RequestHandler, Service, ServiceError};
+use crate::models::sideswap;
 use crate::models::transactions;
 
 use anyhow::anyhow;
@@ -18,7 +19,6 @@ pub enum SwapRequest {
     },
 }
 
-/*
 struct SwapRequestHandler {
     sideswap_channel: mpsc::Sender<SideswapRequest>,
     pool: PgPool,
@@ -115,4 +115,3 @@ impl RequestHandler<SwapRequest> for SwapRequestHandler {
         }
     }
 }
-*/
