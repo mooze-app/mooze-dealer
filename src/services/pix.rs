@@ -69,8 +69,16 @@ impl PixRequestHandler {
             .await
             .map_err(|e| ServiceError::Repository("Pix".to_string(), e.to_string()))?;
 
+        if transaction_id.is_none() {
+            log::info!(
+                "Received chat deposit. Ignoring. {}",
+                eulen_deposit.bank_tx_id
+            );
+            return Ok(());
+        }
+
         let transaction_channel = self.transaction_channel.clone();
-        let transaction_id_clone = transaction_id.clone();
+        let transaction_id_clone = transaction_id.clone().unwrap();
         let eulen_deposit_clone = eulen_deposit.clone();
 
         tokio::spawn(async move {

@@ -55,16 +55,19 @@ impl PixRepository {
     pub async fn update_eulen_deposit_status(
         &self,
         eulen_deposit_status: &pix::EulenDepositStatus,
-    ) -> Result<String, anyhow::Error> {
+    ) -> Result<Option<String>, anyhow::Error> {
         let transaction = sqlx::query_as!(
             pix::PixTransaction,
             "UPDATE pix_transactions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE eulen_id = $2 returning *",
             eulen_deposit_status.status,
             eulen_deposit_status.qr_id
         )
-        .fetch_one(&self.conn)
+        .fetch_optional(&self.conn)
         .await?;
 
-        Ok(transaction.transaction_id)
+        match transaction {
+            Some(transaction) => Ok(Some(transaction.transaction_id)),
+            None => Ok(None),
+        }
     }
 }
