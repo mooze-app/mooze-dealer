@@ -117,7 +117,7 @@ pub struct TakerSign {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum QuoteStatus {
     Success {
-        quote_id: i64,
+        quote_id: u64,
         base_amount: u64,
         quote_amount: u64,
         server_fee: u64,

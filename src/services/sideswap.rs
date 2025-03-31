@@ -206,6 +206,52 @@ impl SideswapRequestHandler {
             )),
         }
     }
+
+    async fn proceed_with_quote(&self, quote_sub_id: u64, quote: QuoteStatus) {
+        match quote {
+            QuoteStatus::LowBalance {
+                base_amount,
+                quote_amount,
+                server_fee,
+                fixed_fee,
+                available,
+            } => {
+                log::warn!(
+                    r"
+                    Could not finalize quote: low balance.
+                    Base amount: {base_amount}, Quote amount: {quote_amount}, Server fee: {server_fee}, Fixed fee: {fixed_fee}, Available: {available}
+                    "
+                );
+            }
+            QuoteStatus::Error { error_msg } => {
+                log::warn!("Sideswap error: {error_msg}");
+            }
+            QuoteStatus::Success {
+                quote_id,
+                base_amount,
+                quote_amount,
+                server_fee,
+                fixed_fee,
+                ttl,
+            } => {}
+        }
+    }
+
+    async fn finish_swap(
+        &self,
+        quote_id: u64,
+        base_amount: u64,
+        quote_amount: u64,
+        fixed_fee: u64,
+        ttl: u64,
+    ) -> Result<(), ServiceError> {
+        let pset = self.client.get_quote_pset(quote_id).await.map_err(|e| {
+            log::error!("Failed to get quote pset: {}", e);
+            ServiceError::Repository("Sideswap".to_string(), e.to_string())
+        })?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]

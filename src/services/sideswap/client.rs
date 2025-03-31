@@ -122,7 +122,7 @@ impl SideswapClient {
         }
     }
 
-    async fn get_quote_pset(&self, quote_id: i64) -> Result<sideswap::Quote, anyhow::Error> {
+    pub async fn get_quote_pset(&self, quote_id: u64) -> Result<sideswap::Quote, anyhow::Error> {
         let result: Result<sideswap::Quote, anyhow::Error> = call_sideswap_api!(
             self,
             "market",
@@ -137,9 +137,9 @@ impl SideswapClient {
         }
     }
 
-    async fn sign_quote(
+    pub async fn sign_quote(
         &self,
-        quote_id: i64,
+        quote_id: u64,
         pset: String,
     ) -> Result<sideswap::TakerSign, anyhow::Error> {
         let result = call_sideswap_api!(
@@ -236,7 +236,7 @@ async fn process_quote(
 
             if let Some(success) = status.get("Success") {
                 let quote = sideswap::QuoteStatus::Success {
-                    quote_id: success["quote_id"].as_i64().unwrap_or(0),
+                    quote_id: success["quote_id"].as_u64().unwrap_or(0),
                     base_amount: success["base_amount"].as_u64().unwrap_or(0),
                     quote_amount: success["quote_amount"].as_u64().unwrap_or(0),
                     server_fee: success["server_fee"].as_u64().unwrap_or(0),
