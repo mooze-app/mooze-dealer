@@ -1,4 +1,4 @@
-use super::{SideswapMessage, SideswapNotification};
+use super::{SideswapMessage, SideswapNotification, SideswapRequest};
 use crate::models::sideswap::ListMarkets;
 use crate::utils::json_rpc::JsonRpcClient;
 use crate::{models::sideswap, utils::json_rpc};
@@ -33,17 +33,18 @@ macro_rules! call_sideswap_api {
     }};
 }
 
+#[derive(Clone)]
 pub struct SideswapClient {
     client: Arc<JsonRpcClient>,
     api_key: String,
-    sideswap_channel: mpsc::Sender<SideswapMessage>,
+    sideswap_channel: mpsc::Sender<SideswapRequest>,
 }
 
 impl SideswapClient {
     pub async fn new(
         url: &str,
         api_key: String,
-        sideswap_channel: mpsc::Sender<SideswapMessage>,
+        sideswap_channel: mpsc::Sender<SideswapRequest>,
     ) -> Self {
         let client = Arc::new(JsonRpcClient::new(url).await);
 
@@ -172,7 +173,7 @@ impl SideswapClient {
 // Static function to process notifications without requiring &self
 async fn process_notification(
     notification: serde_json::Value,
-    tx: &mpsc::Sender<SideswapMessage>,
+    tx: &mpsc::Sender<SideswapRequest>,
 ) -> Result<(), anyhow::Error> {
     match notification.get("method") {
         Some(method) => match method.as_str() {
@@ -194,7 +195,7 @@ async fn process_notification(
 
 async fn process_market_notification(
     params: &serde_json::Value,
-    tx: &mpsc::Sender<SideswapMessage>,
+    tx: &mpsc::Sender<SideswapRequest>,
 ) -> Result<(), anyhow::Error> {
     if let Some(quote) = params.get("quote") {
         process_quote(quote, tx).await?;
@@ -204,7 +205,7 @@ async fn process_market_notification(
 
 async fn process_quote(
     quote: &serde_json::Value,
-    tx: &mpsc::Sender<SideswapMessage>,
+    tx: &mpsc::Sender<SideswapRequest>,
 ) -> Result<(), anyhow::Error> {
     let quote_sub_id = quote["quote_sub_id"].as_i64().unwrap_or(0);
 
@@ -219,10 +220,10 @@ async fn process_quote(
                     available: low_balance["available"].as_u64().unwrap_or(0),
                 };
 
-                tx.send(SideswapMessage::Notification(SideswapNotification::Quote {
+                tx.send(SideswapRequest::Quote {
                     quote_sub_id,
                     status: quote,
-                }))
+                })
                 .await?;
             }
 
@@ -234,10 +235,10 @@ async fn process_quote(
                         .to_owned(),
                 };
 
-                tx.send(SideswapMessage::Notification(SideswapNotification::Quote {
+                tx.send(SideswapRequest::Quote {
                     quote_sub_id,
                     status: quote,
-                }))
+                })
                 .await?;
             }
 
@@ -251,10 +252,10 @@ async fn process_quote(
                     ttl: success["ttl"].as_u64().unwrap_or(0),
                 };
 
-                tx.send(SideswapMessage::Notification(SideswapNotification::Quote {
+                tx.send(SideswapRequest::Quote {
                     quote_sub_id,
                     status: quote,
-                }))
+                })
                 .await?;
             }
 

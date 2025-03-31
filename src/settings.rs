@@ -28,6 +28,7 @@ pub struct Depix {
 #[derive(Debug, Deserialize)]
 pub struct Sideswap {
     pub url: String,
+    pub api_key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,10 +44,16 @@ pub struct PriceProviders {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Liquidity {
+    pub max_depix_amount: u64,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub postgres: Postgres,
     pub electrum: Electrum,
     pub depix: Depix,
+    pub liquidity: Liquidity,
     pub price_providers: PriceProviders,
     pub sideswap: Sideswap,
     pub wallet: Wallet,

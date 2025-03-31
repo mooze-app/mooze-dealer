@@ -1,11 +1,11 @@
-use super::{RequestHandler, Service, ServiceError};
+use super::{liquidity::LiquidityRequest, RequestHandler, Service, ServiceError};
 use crate::repositories::liquid::LiquidRepository;
 
 use async_trait::async_trait;
 use log::{error, info, warn};
 use lwk_wollet::{elements::pset::PartiallySignedTransaction, UnvalidatedRecipient, WalletTxOut};
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 pub enum LiquidRequest {
     GetNewAddress {
@@ -39,18 +39,28 @@ pub enum LiquidRequest {
 #[derive(Clone)]
 pub struct LiquidRequestHandler {
     liquid_repository: Arc<LiquidRepository>,
+    liquidity_channel: mpsc::Sender<LiquidityRequest>,
 }
 
 impl LiquidRequestHandler {
-    pub fn new(mnemonic: String, electrum_url: String, is_mainnet: bool) -> Self {
+    pub fn new(
+        liquidity_channel: mpsc::Sender<LiquidityRequest>,
+        mnemonic: String,
+        electrum_url: String,
+        is_mainnet: bool,
+    ) -> Self {
         let liquid_repository = LiquidRepository::new(&mnemonic, electrum_url, is_mainnet)
             .expect("Could not instantiate Liquid Repository");
 
-        Self { liquid_repository }
+        Self {
+            liquid_repository,
+            liquidity_channel,
+        }
     }
 
     pub async fn start(&self) -> tokio::task::JoinHandle<()> {
         let repository = self.liquid_repository.clone();
+        let liquidity_channel = self.liquidity_channel.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
@@ -69,7 +79,15 @@ impl LiquidRequestHandler {
                     .await;
 
                 match depix_amount {
-                    Ok(amount) => {}
+                    Ok(amount) => {
+                        let _ = liquidity_channel
+                            .send(LiquidityRequest::UpdateAssetAmount{
+                                asset_id: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189".to_string(),
+                                amount,
+                            }
+                            )
+                            .await;
+                    }
                     Err(e) => error!("Error getting DEPIX balance: {}", e),
                 };
             }

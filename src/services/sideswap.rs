@@ -16,12 +16,7 @@ pub enum SideswapMessage {
     Notification(SideswapNotification),
 }
 
-pub enum SideswapNotification {
-    Quote {
-        quote_sub_id: i64,
-        status: QuoteStatus,
-    },
-}
+pub enum SideswapNotification {}
 
 pub enum SideswapRequest {
     Swap {
@@ -30,9 +25,14 @@ pub enum SideswapRequest {
         amount: i64,
         response: oneshot::Sender<Result<i64, ServiceError>>,
     },
+    Quote {
+        quote_sub_id: i64,
+        status: QuoteStatus,
+    },
 }
 
-struct SideswapRequestHandler {
+#[derive(Clone)]
+pub struct SideswapRequestHandler {
     client: client::SideswapClient,
     liquid_channel: mpsc::Sender<LiquidRequest>,
 }
@@ -42,7 +42,7 @@ impl SideswapRequestHandler {
         sideswap_url: &str,
         sideswap_api_key: &str,
         liquid_channel: mpsc::Sender<LiquidRequest>,
-        client_channel: mpsc::Sender<SideswapMessage>,
+        client_channel: mpsc::Sender<SideswapRequest>,
     ) -> Self {
         let client =
             client::SideswapClient::new(sideswap_url, sideswap_api_key.to_string(), client_channel)
@@ -315,28 +315,35 @@ impl SideswapRequestHandler {
 }
 
 #[async_trait]
-impl RequestHandler<SideswapMessage> for SideswapRequestHandler {
-    async fn handle_request(&self, message: SideswapMessage) {
+impl RequestHandler<SideswapRequest> for SideswapRequestHandler {
+    async fn handle_request(&self, message: SideswapRequest) {
         match message {
-            SideswapMessage::Request(request) => match request {
-                SideswapRequest::Swap {
-                    sell_asset,
-                    receive_asset,
-                    amount,
-                    response,
-                } => {
-                    let result = self.start_quotes(sell_asset, receive_asset, amount).await;
-                    let _ = response.send(result);
-                }
-            },
-            SideswapMessage::Notification(notification) => match notification {
-                SideswapNotification::Quote {
-                    quote_sub_id,
-                    status,
-                } => {
-                    let _ = self.proceed_with_quote(status);
-                }
-            },
+            SideswapRequest::Swap {
+                sell_asset,
+                receive_asset,
+                amount,
+                response,
+            } => {
+                let result = self.start_quotes(sell_asset, receive_asset, amount).await;
+                let _ = response.send(result);
+            }
+            SideswapRequest::Quote {
+                quote_sub_id,
+                status,
+            } => {
+                let _ = self.proceed_with_quote(status);
+            }
         }
     }
 }
+
+pub struct SideswapService {}
+
+impl SideswapService {
+    pub fn new() -> Self {
+        SideswapService {}
+    }
+}
+
+#[async_trait]
+impl Service<SideswapRequest, SideswapRequestHandler> for SideswapService {}

@@ -14,13 +14,12 @@ pub enum LiquidityRequest {
 
 #[derive(Clone)]
 pub struct LiquidityHandler {
-    sideswap_channel: mpsc::Sender<SideswapMessage>,
+    sideswap_channel: mpsc::Sender<SideswapRequest>,
     depix_max_amount: u64,
 }
 
 impl LiquidityHandler {
-    pub fn new(settings: Settings, sideswap_channel: mpsc::Sender<SideswapMessage>) -> Self {
-        let depix_max_amount = settings.liquidity.max_depix_amount * 10_u64.pow(8);
+    pub fn new(depix_max_amount: u64, sideswap_channel: mpsc::Sender<SideswapRequest>) -> Self {
         Self {
             sideswap_channel,
             depix_max_amount,
@@ -45,7 +44,7 @@ impl LiquidityHandler {
             // Sends and forgets. If swap fails, the error is logged and liquidity will be handled in the next minute.
             let _ = self
                 .sideswap_channel
-                .send(SideswapMessage::Request(SideswapRequest::Swap {
+                .send(SideswapRequest::Swap {
                     sell_asset: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189"
                         .to_string(),
                     receive_asset:
@@ -53,7 +52,7 @@ impl LiquidityHandler {
                             .to_string(),
                     amount: (current_balance - self.depix_max_amount) as i64,
                     response: swap_tx,
-                }))
+                })
                 .await
                 .map_err(|e| {
                     log::warn!("Failed to send swap request: {}", e);
