@@ -10,16 +10,12 @@ use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use tower_http::trace::TraceLayer;
 
-use super::{
-    pix::PixServiceRequest,
-    transactions::TransactionServiceRequest,
-    users::UserRequest,
-};
+use super::{pix::PixServiceRequest, transactions::TransactionServiceRequest, users::UserRequest};
 use crate::models::{
-        pix,
-        transactions::{Assets, NewTransaction},
-        users::NewUser,
-    };
+    pix,
+    transactions::{Assets, NewTransaction},
+    users::NewUser,
+};
 
 mod users;
 
@@ -118,59 +114,6 @@ async fn get_user_daily_spending(
             return (
                 StatusCode::OK,
                 Json(json!({"daily_spending": daily_spending})),
-            )
-        }
-        Ok(Err(service_error)) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({
-                    "error": "Database error",
-                    "details": service_error.to_string()
-                })),
-            )
-        }
-        Err(e) => {
-            return {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({
-                        "error": "Internal server error",
-                        "details": e.to_string()
-                    })),
-                )
-            }
-        }
-    }
-}
-
-async fn get_user_details(
-    State(state): State<AppState>,
-    Path(user_id): Path<String>,
-) -> impl IntoResponse {
-    let (user_tx, user_rx) = oneshot::channel();
-
-    let user_result = state
-        .user_channel
-        .send(UserRequest::IsFirstTransaction {
-            id: user_id,
-            response: user_tx,
-        })
-        .await;
-    if let Err(e) = user_result {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "error": "Internal server error",
-                "details": e.to_string()
-            })),
-        );
-    }
-
-    match user_rx.await {
-        Ok(Ok(daily_spending)) => {
-            return (
-                StatusCode::OK,
-                Json(json!({"is_first_transaction": daily_spending})),
             )
         }
         Ok(Err(service_error)) => {

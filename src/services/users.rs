@@ -26,10 +26,6 @@ pub enum UserRequest {
         id: String,
         response: oneshot::Sender<Result<i64, ServiceError>>,
     },
-    IsFirstTransaction {
-        id: String,
-        response: oneshot::Sender<Result<bool, ServiceError>>,
-    },
     GetUserReferrerAddress {
         id: String,
         response: oneshot::Sender<Result<Option<String>, ServiceError>>,
@@ -79,20 +75,21 @@ impl UserRequestHandler {
             .map_err(|e| ServiceError::Database(e.to_string()))
     }
 
-    async fn is_first_transaction(&self, user_id: &str) -> Result<bool, ServiceError> {
+    async fn get_allowed_spending(&self, user_id: &str) -> Result<i64, ServiceError> {
         self.repository
-            .is_first_transaction(user_id)
+            .get_user_allowed_spending(user_id)
             .await
             .map_err(|e| ServiceError::Database(e.to_string()))
     }
 
     async fn get_user_details(&self, user_id: &str) -> Result<users::UserDetails, ServiceError> {
         let daily_spending = self.get_user_daily_spending(user_id).await?;
-        let is_first_transaction = self.is_first_transaction(user_id).await?;
+        let allowed_spending = self.get_allowed_spending(user_id).await?;
+
         Ok(users::UserDetails {
             id: user_id.to_string(),
             daily_spending,
-            is_first_transaction,
+            allowed_spending,
             is_verified: false,
         })
     }
@@ -141,10 +138,6 @@ impl RequestHandler<UserRequest> for UserRequestHandler {
             UserRequest::GetUserDailySpending { id, response } => {
                 let spending = self.get_user_daily_spending(&id).await;
                 let _ = response.send(spending);
-            }
-            UserRequest::IsFirstTransaction { id, response } => {
-                let result = self.is_first_transaction(&id).await;
-                let _ = response.send(result);
             }
             UserRequest::GetUserDetails { id, response } => {
                 let details = self.get_user_details(&id).await;

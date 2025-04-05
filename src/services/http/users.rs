@@ -39,7 +39,7 @@ pub async fn get_user_details(
                 Json(json!({
                         "user_id": user.id,
                         "daily_spending": user.daily_spending,
-                        "is_first_transaction": user.is_first_transaction,
+                        "allowed_spending": user.allowed_spending,
                         "verified": user.is_verified
                 })),
             )

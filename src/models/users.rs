@@ -18,6 +18,6 @@ pub struct NewUser {
 pub struct UserDetails {
     pub id: String,
     pub daily_spending: i64,
-    pub is_first_transaction: bool,
+    pub allowed_spending: i64,
     pub is_verified: bool, // reserved field
 }

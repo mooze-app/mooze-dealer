@@ -22,11 +22,14 @@ impl TransactionRepository {
         asset: &String,
         network: &String,
     ) -> Result<transactions::Transaction, anyhow::Error> {
-        let is_first_transaction = self.check_first_transaction(user_id).await?;
+        let transaction_count = self.get_transaction_count(user_id).await?;
         let daily_spending = self.get_daily_spending(user_id).await?;
 
-        if is_first_transaction && amount_in_cents > 250 * 100 {
-            bail!("ExceededFirstTransactionAmount")
+        if ((transaction_count == 0 && amount_in_cents > 250 * 100)
+            || (transaction_count == 1 && amount_in_cents > 750 * 100)
+            || (transaction_count == 2 && amount_in_cents > 1500 * 100))
+        {
+            bail!("ExceededAllowedTransactionAmount")
         }
 
         if (amount_in_cents + daily_spending) > 5000 * 100 {
@@ -76,18 +79,33 @@ impl TransactionRepository {
         Ok(transaction)
     }
 
-    async fn check_first_transaction(&self, user_id: &String) -> Result<bool, anyhow::Error> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(1) FROM transactions WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&self.conn)
-            .await?;
+    pub async fn get_allowed_spending(&self, user_id: &String) -> Result<i32, anyhow::Error> {
+        let transaction_count = self.get_transaction_count(user_id).await?;
 
-        Ok(count == 0)
+        let allowed_spending = match transaction_count {
+            0 => 250 * 100,
+            1 => 750 * 100,
+            2 => 1500 * 100,
+            _ => self.get_daily_spending(user_id).await?,
+        };
+
+        Ok(allowed_spending)
+    }
+
+    async fn get_transaction_count(&self, user_id: &String) -> Result<i64, anyhow::Error> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(1) FROM transactions WHERE user_id = $1 AND status = 'eulen_depix_sent'",
+        )
+        .bind(user_id)
+        .fetch_one(&self.conn)
+        .await?;
+
+        Ok(count)
     }
 
     async fn get_daily_spending(&self, user_id: &String) -> Result<i32, anyhow::Error> {
         let amount: i64 = sqlx::query_scalar(
-            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE"#,
+            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE AND status = 'eulen_depix_sent'"#,
         )
         .bind(user_id)
         .fetch_one(&self.conn)

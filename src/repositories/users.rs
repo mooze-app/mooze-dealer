@@ -93,14 +93,42 @@ impl UserRepository {
         Ok(amount)
     }
 
-    pub async fn is_first_transaction(&self, user_id: &str) -> Result<bool, anyhow::Error> {
+    async fn get_user_spending(&self, user_id: &str) -> Result<i64, anyhow::Error> {
+        let amount: i64 = sqlx::query_scalar(
+            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND status = 'eulen_depix_sent'"#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.conn)
+        .await?;
+
+        Ok(amount)
+    }
+
+    pub async fn get_user_allowed_spending(&self, user_id: &str) -> Result<i64, anyhow::Error> {
+        let user_spending = self.get_user_spending(user_id).await?;
+        let user_daily_spending = self.get_user_daily_spending(user_id).await?;
+
+        let allowed_spending = if user_spending < 250 * 100 {
+            250 * 100 - user_daily_spending
+        } else if user_spending < 750 * 100 {
+            750 * 100 - user_daily_spending
+        } else if user_spending < 1500 * 100 {
+            1500 * 100 - user_daily_spending
+        } else {
+            self.get_user_daily_spending(user_id).await?
+        };
+
+        Ok(allowed_spending)
+    }
+
+    pub async fn get_transaction_count(&self, user_id: &str) -> Result<i64, anyhow::Error> {
         let tx_count: i64 =
-            sqlx::query_scalar(r#"SELECT COUNT(1) FROM transactions WHERE user_id = $1"#)
+            sqlx::query_scalar(r#"SELECT COUNT(1) FROM transactions WHERE user_id = $1 AND status = 'eulen_depix_sent'"#)
                 .bind(user_id)
                 .fetch_one(&self.conn)
                 .await?;
 
-        Ok(tx_count == 0)
+        Ok(tx_count)
     }
 
     pub async fn get_user_referrer(&self, user_id: &str) -> Result<Option<String>, anyhow::Error> {
