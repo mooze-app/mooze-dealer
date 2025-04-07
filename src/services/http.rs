@@ -145,7 +145,7 @@ async fn request_new_deposit(
 ) -> impl IntoResponse {
     let (transaction_tx, transaction_rx) = oneshot::channel();
 
-    if req.asset != Assets::DEPIX.hex() {
+    if (req.asset != Assets::DEPIX.hex()) && (req.asset != Assets::LBTC.hex()) {
         return (
             StatusCode::NOT_IMPLEMENTED,
             Json(json!({

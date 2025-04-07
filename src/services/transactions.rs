@@ -3,13 +3,13 @@ use std::collections::VecDeque;
 use super::liquid::LiquidRequest;
 use super::pix::PixServiceRequest;
 use super::price::PriceRequest;
+use super::sideswap::SideswapRequest;
 use super::users::UserRequest;
 use crate::models::pix::Deposit;
 use crate::models::transactions;
 use crate::models::transactions::Assets;
 use crate::repositories::transactions::TransactionRepository;
 use async_trait::async_trait;
-use futures_util::TryFutureExt;
 use lwk_wollet::elements::pset::PartiallySignedTransaction;
 use lwk_wollet::UnvalidatedRecipient;
 use sqlx::PgPool;
@@ -49,6 +49,7 @@ pub struct TransactionRequestHandler {
     pix_channel: mpsc::Sender<PixServiceRequest>,
     price_channel: mpsc::Sender<PriceRequest>,
     user_channel: mpsc::Sender<UserRequest>,
+    sideswap_channel: mpsc::Sender<SideswapRequest>,
     pending_transactions: Arc<Mutex<VecDeque<PendingTransaction>>>,
 }
 
@@ -59,6 +60,7 @@ impl TransactionRequestHandler {
         pix_channel: mpsc::Sender<PixServiceRequest>,
         price_channel: mpsc::Sender<PriceRequest>,
         user_channel: mpsc::Sender<UserRequest>,
+        sideswap_channel: mpsc::Sender<SideswapRequest>,
     ) -> Self {
         let repository = TransactionRepository::new(sql_conn);
         let pending_transactions = Arc::new(Mutex::new(VecDeque::new()));
@@ -69,6 +71,7 @@ impl TransactionRequestHandler {
             pix_channel,
             price_channel,
             user_channel,
+            sideswap_channel,
             pending_transactions,
         };
 
@@ -479,14 +482,25 @@ impl TransactionRequestHandler {
                     last_attempt: chrono::Utc::now(),
                 });
 
+                let (sideswap_tx, sideswap_rx) = oneshot::channel();
+                let _ = self.sideswap_channel.send(
+                    SideswapRequest::Swap {
+                        sell_asset: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189".to_string(),
+                        receive_asset: transaction.asset.clone(),
+                        amount: (transaction.amount_in_cents as u64 * 10_u64.pow(8)) as i64,
+                        response: sideswap_tx,
+                    }
+                ).await.map_err(|e| {
+                    log::error!("Failed to send sideswap request: {:?}", e);
+                    ServiceError::Communication("Transaction => Sideswap".to_string(), e.to_string())
+                })?;
+
                 return Err(ServiceError::Internal("InsufficientBalance".to_string()));
             }
         }
 
-        // Continue with the original implementation for the sufficient balance case
         let asset_price_in_cents = self.request_asset_price(&transaction.asset).await?;
 
-        // Calculate asset amount with precision already included
         let asset_amount =
             (transaction.amount_in_cents as u64 * 10_u64.pow(8)) / asset_price_in_cents;
 

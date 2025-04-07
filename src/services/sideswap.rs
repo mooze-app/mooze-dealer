@@ -48,6 +48,7 @@ impl SideswapRequestHandler {
                 .await;
 
         let _ = client.start().await;
+        client.start_notification_listener().await;
 
         Self {
             client,
