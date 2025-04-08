@@ -75,6 +75,7 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
     let transaction_liquid_tx = liquid_tx.clone();
     let transaction_pix_tx = pix_tx.clone();
     let transaction_price_tx = price_tx.clone();
+    let transaction_sideswap_tx = sideswap_tx.clone();
     let transaction_user_tx = user_tx.clone();
     tokio::spawn(async move {
         transaction_service
@@ -85,6 +86,7 @@ pub async fn start_services(pool: PgPool, settings: Settings) -> Result<(), anyh
                     transaction_pix_tx,
                     transaction_price_tx,
                     transaction_user_tx,
+                    transaction_sideswap_tx,
                 ),
                 &mut transaction_rx,
             )
