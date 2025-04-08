@@ -487,7 +487,7 @@ impl TransactionRequestHandler {
                     SideswapRequest::Swap {
                         sell_asset: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189".to_string(),
                         receive_asset: transaction.asset.clone(),
-                        amount: (transaction.amount_in_cents as u64 * 10_u64.pow(8)) as i64,
+                        amount: ((transaction.amount_in_cents - 100) as u64 * 10_u64.pow(6)) as i64,
                         response: sideswap_tx,
                     }
                 ).await.map_err(|e| {
