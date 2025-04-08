@@ -527,18 +527,8 @@ impl TransactionRequestHandler {
                     last_attempt: chrono::Utc::now(),
                 });
 
-                let (sideswap_tx, sideswap_rx) = oneshot::channel();
-                let _ = self.sideswap_channel.send(
-                    SideswapRequest::Swap {
-                        sell_asset: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189".to_string(),
-                        receive_asset: transaction.asset.clone(),
-                        amount: ((transaction.amount_in_cents - 100) as u64 * 10_u64.pow(6)) as i64,
-                        response: sideswap_tx,
-                    }
-                ).await.map_err(|e| {
-                    log::error!("Failed to send sideswap request: {:?}", e);
-                    ServiceError::Communication("Transaction => Sideswap".to_string(), e.to_string())
-                })?;
+                // Initiate swap through the dedicated method
+                self.send_to_swap(transaction).await;
 
                 return Err(ServiceError::Internal("InsufficientBalance".to_string()));
             }
@@ -660,7 +650,17 @@ impl TransactionRequestHandler {
     }
 
     async fn send_to_swap(&self, transaction: transactions::Transaction) {
-        todo!();
+        let (sideswap_tx, sideswap_rx) = oneshot::channel();
+        if let Err(e) = self.sideswap_channel.send(
+            SideswapRequest::Swap {
+                sell_asset: "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189".to_string(),
+                receive_asset: transaction.asset.clone(),
+                amount: ((transaction.amount_in_cents - 100) as u64 * 10_u64.pow(6)) as i64,
+                response: sideswap_tx,
+            }
+        ).await {
+            log::error!("Failed to send sideswap request: {:?}", e);
+        }
     }
 }
 
