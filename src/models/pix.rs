@@ -8,8 +8,8 @@ pub struct PixTransaction {
     pub address: String,
     pub amount_in_cents: i32,
     pub status: String,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

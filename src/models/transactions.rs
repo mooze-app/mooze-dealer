@@ -5,16 +5,16 @@ pub struct Transaction {
     pub id: String,
     pub user_id: String,
     pub address: String,
-    pub fee_address: String,
     pub amount_in_cents: i32,
     pub asset: String,
+    pub fee_collected: Option<i32>,
     pub network: String,
     pub status: String,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct NewTransaction {
     pub user_id: String,
     pub address: String,

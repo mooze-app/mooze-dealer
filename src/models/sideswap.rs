@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum AssetType {
     Base,
     Quote,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum TradeDir {
     Buy,
     Sell,
@@ -77,23 +79,37 @@ pub struct ListMarkets {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SideswapUtxo {
+    #[serde(rename = "txid")]
     pub txid: String,
+    #[serde(rename = "vout")]
     pub vout: u32,
+    #[serde(rename = "asset")]
     pub asset: String,
+    #[serde(rename = "asset_bf")]
     pub asset_bf: String,
+    #[serde(rename = "value")]
     pub value: u64,
+    #[serde(rename = "value_bf")]
     pub value_bf: String,
+    #[serde(rename = "redeem_script", skip_serializing_if = "Option::is_none")]
     pub redeem_script: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct QuoteRequest {
+    #[serde(rename = "asset_pair")]
     pub asset_pair: AssetPair,
+    #[serde(rename = "asset_type")]
     pub asset_type: AssetType,
+    #[serde(rename = "trade_dir")]
     pub trade_dir: TradeDir,
+    #[serde(rename = "amount")]
     pub amount: i64,
+    #[serde(rename = "utxos")]
     pub utxos: Vec<SideswapUtxo>,
+    #[serde(rename = "receive_address")]
     pub receive_address: String,
+    #[serde(rename = "change_address")]
     pub change_address: String,
 }
 

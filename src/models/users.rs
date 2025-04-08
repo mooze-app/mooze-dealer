@@ -5,8 +5,8 @@ pub struct User {
     pub id: String,
     pub verified: bool,
     pub referred_by: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

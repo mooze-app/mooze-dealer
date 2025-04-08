@@ -6,6 +6,6 @@ pub struct Referral {
     pub user_id: String,
     pub referral_code: String,
     pub payment_address: String,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
