@@ -143,6 +143,7 @@ async fn request_new_deposit(
     State(state): State<AppState>,
     Json(req): Json<NewTransaction>,
 ) -> impl IntoResponse {
+    log::debug!("Received new deposit request: {:?}", req);
     let (transaction_tx, transaction_rx) = oneshot::channel();
 
     if (req.asset != Assets::DEPIX.hex()) && (req.asset != Assets::LBTC.hex()) {
@@ -176,6 +177,7 @@ async fn request_new_deposit(
 
     match transaction_rx.await {
         Ok(Ok(deposit)) => {
+            log::debug!("Deposit created: {:?}", deposit);
             let response = DepositResponse {
                 id: deposit.id,
                 qr_image_url: deposit.qr_image_url,
