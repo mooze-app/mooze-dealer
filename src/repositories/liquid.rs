@@ -8,7 +8,7 @@ use lwk_signer::SwSigner;
 use lwk_wollet::{
     self,
     blocking::BlockchainBackend,
-    elements::pset::PartiallySignedTransaction,
+    elements::{pset::{serialize::Serialize, PartiallySignedTransaction}, OutPoint, Transaction, TxOut},
     full_scan_with_electrum_client, ElectrumClient, ElectrumUrl, ElementsNetwork, FsPersister,
     NoPersist, WalletTxOut, Wollet,
 };
@@ -134,9 +134,63 @@ impl LiquidRepository {
         let count = self
             .signer
             .sign(&mut pset)
-            .map_err(|e| anyhow!("Failed to sign transaction: {e}"))?; // mutates pset in-place, copy it to return to caller if needed
+            .map_err(|e| {
+                log::error!("Failed to sign transaction: {}", e);
+                anyhow!("Failed to sign transaction: {e}")
+            })?; // mutates pset in-place, copy it to return to caller if needed
+
+        log::debug!("Count: {}", count);
+        log::debug!("Signed pset: {}", pset.to_string());
 
         Ok(pset)
+    }
+
+    async fn get_txout(&self, outpoint: &OutPoint) -> Result<lwk_wollet::elements::TxOut, anyhow::Error> {
+        let wallet = self.wallet.read().await;
+        let wallet_tx = wallet.transaction(&outpoint.txid)?;
+
+        let tx = wallet_tx.ok_or(anyhow!("Transaction not found"))?;
+        let txout = tx.tx.output.get(outpoint.vout as usize).ok_or(anyhow!("Output not found"))?;
+
+        Ok(txout.clone())
+    }
+
+    // Taken from Bull Bitcoin definition
+    pub async fn sign_with_extra_details(
+        &self,
+        mut pset: PartiallySignedTransaction,
+    ) -> Result<String, anyhow::Error> {
+        let wallet = self.wallet.read().await;
+        let _ = self.signer.sign(&mut pset).map_err(|e| {
+            log::error!("{}", e.to_string());
+            anyhow!("Could not sign transaction: {e}")
+        })?;
+
+        for input in pset.inputs_mut().iter_mut() {
+            let res = self.get_txout(&OutPoint {
+                txid: input.previous_txid,
+                vout: input.previous_output_index
+            }).await;
+
+            if let Ok(mut txout) = res {
+                input.in_utxo_rangeproof = txout.witness.rangeproof.take();
+                input.witness_utxo = Some(txout);
+            }
+        }
+
+        wallet.add_details(&mut pset)?;
+        let _ = self.signer.sign(&mut pset).map_err(|e| {
+            log::error!("{}", e.to_string());
+            anyhow!("Could not sign transaction: {e}")
+        })?;
+
+        for input in pset.inputs_mut() {
+            if let Some((public_key, input_sign)) = input.partial_sigs.iter().next() {
+                input.final_script_witness = Some(vec![input_sign.clone(), public_key.to_bytes()]);
+            }
+        }
+
+        Ok(pset.to_string())
     }
 
     pub async fn finalize_and_broadcast_transaction(

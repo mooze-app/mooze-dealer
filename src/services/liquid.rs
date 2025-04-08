@@ -30,6 +30,10 @@ pub enum LiquidRequest {
         pset: PartiallySignedTransaction,
         response: oneshot::Sender<Result<PartiallySignedTransaction, ServiceError>>,
     },
+    SignWithExtraDetails {
+        pset: PartiallySignedTransaction,
+        response: oneshot::Sender<Result<String, ServiceError>>,
+    },
     FinalizeTransaction {
         pset: PartiallySignedTransaction,
         response: oneshot::Sender<Result<String, ServiceError>>,
@@ -144,6 +148,16 @@ impl LiquidRequestHandler {
             .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))
     }
 
+    async fn sign_with_extra_details(
+        &self,
+        pset: PartiallySignedTransaction,
+    ) -> Result<String, ServiceError> {
+        self.liquid_repository
+            .sign_with_extra_details(pset)
+            .await
+            .map_err(|e| ServiceError::Repository(String::from("Liquid"), e.to_string()))
+    }
+
     async fn finalize_transaction(
         &self,
         pset: PartiallySignedTransaction,
@@ -189,6 +203,10 @@ impl RequestHandler<LiquidRequest> for LiquidRequestHandler {
             LiquidRequest::FinalizeTransaction { pset, response } => {
                 let finalized_pset = self.finalize_transaction(pset).await;
                 let _ = response.send(finalized_pset);
+            }
+            LiquidRequest::SignWithExtraDetails { pset, response } => {
+                let signed_pset = self.sign_with_extra_details(pset).await;
+                let _ = response.send(signed_pset);
             }
         }
     }

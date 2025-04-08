@@ -80,6 +80,7 @@ impl SideswapClient {
         tokio::spawn(async move {
             loop {
                 let notification = client.wait_for_notification().await;
+                log::debug!("Received notification: {:?}", notification);
 
                 if let Err(e) = process_notification(notification, &tx).await {
                     log::error!("Error handling notification: {}", e);
@@ -89,17 +90,24 @@ impl SideswapClient {
     }
 
     pub async fn get_markets(&self) -> Result<ListMarkets, anyhow::Error> {
+        log::debug!("Requesting markets from Sideswap");
         let result = call_sideswap_api!(
             self,
             "market",
             json!({"list_markets": {}}),
-            "markets",
+            "list_markets",
             sideswap::ListMarkets
         );
 
         match result {
-            Ok(markets) => Ok(markets),
-            Err(e) => Err(anyhow!("Failed to get markets: {}", e)),
+            Ok(markets) => {
+                log::debug!("Successfully retrieved {} markets", markets.markets.len());
+                Ok(markets)
+            }
+            Err(e) => {
+                log::error!("Failed to get markets: {}", e);
+                Err(anyhow!("Failed to get markets: {}", e))
+            }
         }
     }
 
@@ -107,19 +115,37 @@ impl SideswapClient {
         &self,
         quote_request: sideswap::QuoteRequest,
     ) -> Result<sideswap::StartQuotes, anyhow::Error> {
+        log::debug!("Starting quotes with request: {:?}", quote_request);
+        
+        let request_json = json!({
+            "id": 1,
+            "method": "market",
+            "params": {
+                "start_quotes": quote_request
+            }
+        });
+        
+        log::info!("Sending request to Sideswap: {}", serde_json::to_string_pretty(&request_json).unwrap());
+        
         let result = call_sideswap_api!(
             self,
             "market",
             json!({
-                "quote": quote_request
+                "start_quotes": quote_request
             }),
             "start_quotes",
             sideswap::StartQuotes
         );
 
         match result {
-            Ok(start_quotes) => Ok(start_quotes),
-            Err(e) => Err(anyhow!("Failed to start quotes: {}", e)),
+            Ok(start_quotes) => {
+                log::debug!("Successfully started quotes: {:?}", start_quotes);
+                Ok(start_quotes)
+            }
+            Err(e) => {
+                log::error!("Failed to start quotes: {}", e);
+                Err(anyhow!("Failed to start quotes: {}", e))
+            }
         }
     }
 
@@ -178,6 +204,7 @@ async fn process_notification(
     match notification.get("method") {
         Some(method) => match method.as_str() {
             Some("market") => {
+                log::debug!("Received market notification: {:?}", notification);
                 process_market_notification(&notification["params"], tx).await?;
                 Ok(())
             }
@@ -208,6 +235,7 @@ async fn process_quote(
     tx: &mpsc::Sender<SideswapRequest>,
 ) -> Result<(), anyhow::Error> {
     let quote_sub_id = quote["quote_sub_id"].as_i64().unwrap_or(0);
+    log::debug!("Received quote: {:?}", quote);
 
     match quote.get("status") {
         Some(status) => {
@@ -252,7 +280,9 @@ async fn process_quote(
                     ttl: success["ttl"].as_u64().unwrap_or(0),
                 };
 
-                tx.send(SideswapRequest::Quote {
+                log::debug!("Got successful quote.");
+
+                let _ = tx.send(SideswapRequest::Quote {
                     quote_sub_id,
                     status: quote,
                 })

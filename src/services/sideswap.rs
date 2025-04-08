@@ -108,6 +108,8 @@ impl SideswapRequestHandler {
         receive_asset: String,
         amount: i64,
     ) -> Result<i64, ServiceError> {
+        log::info!("Starting quotes for sell_asset={sell_asset}, receive_asset={receive_asset}, amount={amount}");
+
         let receive_address = self.request_address().await?;
         let change_address = self.request_change_address().await?;
 
@@ -163,12 +165,15 @@ impl SideswapRequestHandler {
             }
         }
 
+        log::info!("Found {} utxos for sell_asset={sell_asset}, receive_asset={receive_asset}, amount={amount}", sideswap_utxos.len());
+
         let markets = self.client.get_markets().await.map_err(|e| {
             ServiceError::Communication(
                 "Sideswap".to_string(),
                 format!("Could not fetch markets: {}", e),
             )
         })?;
+        log::info!("Found {} markets", markets.markets.len());
         let asset_pair = markets
             .markets
             .into_iter()
@@ -181,12 +186,13 @@ impl SideswapRequestHandler {
 
         match asset_pair {
             Some(pair) => {
+                log::info!("Found asset pair: {:?}", pair);
                 let quote_request = QuoteRequest {
                     asset_pair: pair.asset_pair,
                     asset_type: if pair.asset_type == "Quote" {
-                        AssetType::Quote
-                    } else {
                         AssetType::Base
+                    } else {
+                        AssetType::Quote
                     },
                     trade_dir: TradeDir::Sell,
                     amount,
@@ -195,24 +201,29 @@ impl SideswapRequestHandler {
                     change_address,
                 };
 
-                dbg!(&quote_request);
+                log::debug!("Quote request: {:?}", quote_request);
 
                 let quote =
                     self.client.start_quotes(quote_request).await.map_err(|e| {
                         ServiceError::Repository("Sideswap".to_string(), e.to_string())
                     })?;
 
-                dbg!(&quote.quote_sub_id);
+                log::debug!("Quote ID: {}", quote.quote_sub_id);
                 Ok(quote.quote_sub_id)
             }
-            None => Err(ServiceError::Repository(
-                "Sideswap".to_string(),
-                "Market not found".to_string(),
-            )),
+            None => {
+                log::error!("Market not found for sell_asset={sell_asset}, receive_asset={receive_asset}, amount={amount}");
+                Err(ServiceError::Repository(
+                    "Sideswap".to_string(),
+                    "Market not found".to_string(),
+                ))
+            }
         }
     }
 
     async fn proceed_with_quote(&self, quote: QuoteStatus) {
+        log::debug!("Proceeding with quote: {:?}", quote);
+
         match quote {
             QuoteStatus::LowBalance {
                 base_amount,
@@ -276,6 +287,8 @@ impl SideswapRequestHandler {
             )
         })?;
 
+        self.client.stop_quotes().await;
+
         let pset: PartiallySignedTransaction =
             PartiallySignedTransaction::from_str(&quote_pset.pset).map_err(|e| {
                 log::error!("Failed to parse pset: {}", e);
@@ -283,7 +296,7 @@ impl SideswapRequestHandler {
             })?;
 
         self.liquid_channel
-            .send(LiquidRequest::SignTransaction {
+            .send(LiquidRequest::SignWithExtraDetails {
                 pset,
                 response: liquid_tx,
             })
@@ -297,11 +310,10 @@ impl SideswapRequestHandler {
             log::error!("Failed to receive signed transaction: {}", e);
             ServiceError::Communication("Sideswap => Liquid".to_string(), e.to_string())
         })??;
-        let serialized_signed_pset = signed_pset.to_string();
 
         let txid = self
             .client
-            .sign_quote(quote_id, serialized_signed_pset)
+            .sign_quote(quote_id, signed_pset)
             .await
             .map_err(|e| {
                 log::error!("Failed to sign quote: {}", e);
@@ -333,7 +345,7 @@ impl RequestHandler<SideswapRequest> for SideswapRequestHandler {
                 quote_sub_id,
                 status,
             } => {
-                let _ = self.proceed_with_quote(status);
+                self.proceed_with_quote(status).await;
             }
         }
     }
