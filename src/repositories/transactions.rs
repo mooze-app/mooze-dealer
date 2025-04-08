@@ -42,14 +42,13 @@ impl TransactionRepository {
         let transaction = sqlx::query_as!(
             transactions::Transaction,
             r#"INSERT INTO transactions
-            (id, user_id, address, fee_address, amount_in_cents, asset, network, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+            (id, user_id, address, amount_in_cents, asset, network, status)
+            VALUES ($1, $2, $3, $4, $5, $6, 'pending')
             RETURNING *
             "#,
             transaction_id,
             user_id,
             address,
-            fee_address,
             amount_in_cents as i32,
             asset,
             network
@@ -123,6 +122,23 @@ impl TransactionRepository {
             transactions::Transaction,
             "UPDATE transactions SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
             status,
+            id
+        )
+        .fetch_one(&self.conn)
+        .await?;
+
+        Ok(transaction.id)
+    }
+
+    pub async fn update_fee_collected(
+        &self,
+        id: &String,
+        fee_collected: i32,
+    ) -> Result<String, anyhow::Error> {
+        let transaction = sqlx::query_as!(
+            transactions::Transaction,
+            "UPDATE transactions SET fee_collected = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
+            fee_collected,
             id
         )
         .fetch_one(&self.conn)

@@ -33,6 +33,10 @@ pub enum TransactionServiceRequest {
         transaction_id: String,
         status: String,
     },
+    UpdateFeeCollected {
+        transaction_id: String,
+        fee_collected: i32,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -357,6 +361,22 @@ impl TransactionRequestHandler {
         Ok(transaction_id.clone())
     }
 
+    async fn update_fee_collected(
+        &self,
+        transaction_id: &String,
+        fee_collected: i32,
+    ) -> Result<String, ServiceError> {
+        let _ = self
+            .repository
+            .update_fee_collected(transaction_id, fee_collected)
+            .await
+            .map_err(|e| {
+                ServiceError::Repository("TransactionService".to_string(), e.to_string())
+            })?;
+
+        Ok(transaction_id.clone())
+    }
+
     async fn finish_transaction(
         &self,
         transaction: transactions::Transaction,
@@ -511,6 +531,14 @@ impl TransactionRequestHandler {
             referral_addr.is_some(),
         );
 
+        // Update the fee_collected field in the database
+        self.repository
+            .update_fee_collected(&transaction.id, fee_in_asset as i32)
+            .await
+            .map_err(|e| {
+                ServiceError::Repository("TransactionService".to_string(), e.to_string())
+            })?;
+
         let referral_bonus = if let Some(addr) = &referral_addr {
             (transaction.amount_in_cents as u64 * 50 * 10_u64.pow(8)) / 10000 / asset_price_in_cents
         } else {
@@ -636,7 +664,14 @@ impl RequestHandler<TransactionServiceRequest> for TransactionRequestHandler {
                     .update_transaction_status(&transaction_id, &status)
                     .await;
             }
-            _ => (),
+            TransactionServiceRequest::UpdateFeeCollected {
+                transaction_id,
+                fee_collected,
+            } => {
+                let _ = self
+                    .update_fee_collected(&transaction_id, fee_collected)
+                    .await;
+            }
         }
     }
 }
