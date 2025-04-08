@@ -20,18 +20,18 @@
       },
       {
         "ordinal": 3,
-        "name": "fee_address",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 4,
         "name": "amount_in_cents",
         "type_info": "Int4"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "asset",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "fee_collected",
+        "type_info": "Int4"
       },
       {
         "ordinal": 6,
@@ -46,12 +46,12 @@
       {
         "ordinal": 8,
         "name": "created_at",
-        "type_info": "Timestamp"
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 9,
         "name": "updated_at",
-        "type_info": "Timestamp"
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -66,7 +66,7 @@
       false,
       false,
       false,
-      false,
+      true,
       false,
       false,
       false,

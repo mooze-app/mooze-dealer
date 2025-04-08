@@ -20,28 +20,28 @@
       },
       {
         "ordinal": 3,
-        "name": "address",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 4,
-        "name": "amount_in_cents",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 5,
         "name": "status",
         "type_info": "Varchar"
       },
       {
+        "ordinal": 4,
+        "name": "address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "amount_in_cents",
+        "type_info": "Int4"
+      },
+      {
         "ordinal": 6,
         "name": "created_at",
-        "type_info": "Timestamp"
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 7,
         "name": "updated_at",
-        "type_info": "Timestamp"
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
