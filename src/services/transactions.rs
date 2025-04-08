@@ -234,6 +234,31 @@ impl TransactionRequestHandler {
     ) -> Result<Deposit, ServiceError> {
         let (liquid_tx, liquid_rx) = oneshot::channel();
         let (pix_tx, pix_rx) = oneshot::channel();
+        
+        let (user_tx, user_rx) = oneshot::channel();
+        self.user_channel.send(
+            UserRequest::GetUser { id: user_id.clone(), response: user_tx }
+        ).await.map_err(|e| {
+            ServiceError::Communication("Transaction => User".to_string(), e.to_string())
+        })?;
+
+        let user = user_rx.await.map_err(|e| {
+            log::error!("Failed to get user: {:?}", e);
+            ServiceError::Communication("Transaction => User".to_string(), e.to_string())
+        })??;
+
+        if let None = user {
+            let (create_user_tx, create_user_rx) = oneshot::channel();
+            self.user_channel.send(
+                UserRequest::CreateUser {
+                    referral_code: None,
+                    response: create_user_tx,
+                }
+            ).await.map_err(|e| {
+                log::error!("Failed to create user: {:?}", e);
+                ServiceError::Communication("Transaction => User".to_string(), e.to_string())
+        })?;
+        }
 
         self.liquid_channel
             .send(LiquidRequest::GetNewAddress {

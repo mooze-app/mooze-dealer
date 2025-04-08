@@ -51,7 +51,10 @@ impl UserRequestHandler {
         self.repository
             .insert_user(referral_code)
             .await
-            .map_err(|e| ServiceError::Database(e.to_string()))
+            .map_err(|e| {
+                log::error!("Failed to create user: {:?}", e);
+                ServiceError::Database(e.to_string())
+            })
     }
 
     async fn get_user(&self, id: &str) -> Result<Option<users::User>, ServiceError> {

@@ -64,6 +64,7 @@ async fn create_new_user(
             return (StatusCode::CREATED, Json(json!({"user_id": user.id})));
         }
         Ok(Err(service_error)) => {
+            log::error!("Database error: {}", service_error);
             return (
                 StatusCode::NOT_FOUND,
                 Json(json!({
