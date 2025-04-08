@@ -15,11 +15,11 @@ RUN mkdir -p src && \
 
 COPY . .
 
-FROM debian:bullseye-slim
+FROM debian:latest
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    libssl1.1 \
+    libssl3 \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
