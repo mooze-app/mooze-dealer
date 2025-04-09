@@ -239,6 +239,7 @@ impl TransactionRequestHandler {
         self.user_channel.send(
             UserRequest::GetUser { id: user_id.clone(), response: user_tx }
         ).await.map_err(|e| {
+            log::error!("Failed to get user: {:?}", e);
             ServiceError::Communication("Transaction => User".to_string(), e.to_string())
         })?;
 
@@ -265,7 +266,10 @@ impl TransactionRequestHandler {
                 response: liquid_tx,
             })
             .await
-            .map_err(|e| ServiceError::Communication("Transaction".to_string(), e.to_string()))?;
+            .map_err(|e| {
+                log::error!("Failed to get new address: {:?}", e);
+                ServiceError::Communication("Transaction".to_string(), e.to_string())
+            })?;
 
         let fee_address = liquid_rx.await.map_err(|e| {
             ServiceError::ExternalService(
@@ -309,6 +313,7 @@ impl TransactionRequestHandler {
         let pix_deposit = pix_rx
             .await
             .map_err(|e| {
+                log::error!("Failed to get pix deposit: {:?}", e);
                 ServiceError::ExternalService(
                     "TransactionService".to_string(),
                     "PixService".to_string(),
@@ -426,7 +431,10 @@ impl TransactionRequestHandler {
     async fn request_asset_price(&self, asset: &String) -> Result<u64, ServiceError> {
         let (price_tx, price_rx) = oneshot::channel();
         let asset_object = Assets::from_hex(asset)
-            .map_err(|e| ServiceError::Internal("Invalid asset".to_string()))?;
+            .map_err(|e| {
+                log::error!("Invalid asset: {:?}", e);
+                ServiceError::Internal("Invalid asset".to_string())
+            })?;
         self.price_channel
             .send(PriceRequest::GetPrice {
                 asset: asset_object,
@@ -447,8 +455,11 @@ impl TransactionRequestHandler {
 
         match asset_price {
             Some(price) => {
-                let asset_price_in_cents = (price * 100.0) as u64;
-                Ok(asset_price_in_cents)
+                let asset_price_in_cents = price * 100.0;
+                if (asset == "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d") {
+                    return Ok((asset_price_in_cents * 1.02) as u64);
+                }
+                return Ok(asset_price_in_cents as u64)
             }
             None => Err(ServiceError::Internal("Asset price not found".to_string())),
         }
@@ -534,6 +545,8 @@ impl TransactionRequestHandler {
             }
         }
 
+        log::debug!("Continuing with transaction: {}", transaction.id);
+
         let asset_price_in_cents = self.request_asset_price(&transaction.asset).await?;
 
         let asset_amount =
@@ -579,6 +592,8 @@ impl TransactionRequestHandler {
             None => vec![user_recipient],
         };
 
+        log::debug!("Building transaction for: {}", transaction.id);
+
         let (liquid_tx, liquid_rx) = oneshot::channel();
         self.liquid_channel
             .send(LiquidRequest::BuildTransaction {
@@ -596,6 +611,8 @@ impl TransactionRequestHandler {
             ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
         })??;
 
+        log::debug!("Transaction built for: {}", transaction.id);
+
         Ok(pset)
     }
 
@@ -604,6 +621,8 @@ impl TransactionRequestHandler {
         pset: PartiallySignedTransaction,
     ) -> Result<PartiallySignedTransaction, anyhow::Error> {
         let (liquid_tx, liquid_rx) = oneshot::channel();
+
+        log::debug!("Signing transaction.");
         self.liquid_channel
             .send(LiquidRequest::SignTransaction {
                 pset,
@@ -620,6 +639,7 @@ impl TransactionRequestHandler {
             ServiceError::Communication("Transaction => Liquid".to_string(), e.to_string())
         })??;
 
+        log::debug!("Transaction signed.");
         Ok(signed_pset)
     }
 
@@ -628,6 +648,7 @@ impl TransactionRequestHandler {
         pset: PartiallySignedTransaction,
     ) -> Result<(), ServiceError> {
         let (liquid_tx, liquid_rx) = oneshot::channel();
+        log::debug!("Finalizing transaction.");
         self.liquid_channel
             .send(LiquidRequest::FinalizeTransaction {
                 pset,
