@@ -248,19 +248,6 @@ impl TransactionRequestHandler {
             ServiceError::Communication("Transaction => User".to_string(), e.to_string())
         })??;
 
-        if let None = user {
-            let (create_user_tx, create_user_rx) = oneshot::channel();
-            self.user_channel.send(
-                UserRequest::CreateUser {
-                    referral_code: None,
-                    response: create_user_tx,
-                }
-            ).await.map_err(|e| {
-                log::error!("Failed to create user: {:?}", e);
-                ServiceError::Communication("Transaction => User".to_string(), e.to_string())
-        })?;
-        }
-
         self.liquid_channel
             .send(LiquidRequest::GetNewAddress {
                 response: liquid_tx,
@@ -415,13 +402,20 @@ impl TransactionRequestHandler {
         let signed_pset = self
             .sign_transaction(pset)
             .await
-            .map_err(|e| ServiceError::Internal(format!("Could not sign transaction: {}", e)))?;
-        let txid = self.finalize_transaction(signed_pset).await?;
+            .map_err(|e| {
+                log::error!("Could not sign transaction: {:?}", e);
+                ServiceError::Internal(format!("Could not sign transaction: {}", e))
+            })?;
+
+        log::info!("Signed transaction: {:?}", signed_pset);
+
+        self.finalize_transaction(signed_pset).await?;
 
         self.repository
             .update_transaction_status(&transaction.id, &"finished".to_string())
             .await
             .map_err(|e| {
+                log::error!("Could not update transaction status: {:?}", e);
                 ServiceError::Database(format!("Could not update transaction status: {}", e))
             })?;
 

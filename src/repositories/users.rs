@@ -62,6 +62,8 @@ impl UserRepository {
             .fetch_optional(&self.conn)
             .await?;
 
+        log::debug!("Got user: {:?}", user);
+
         Ok(user)
     }
 
@@ -109,13 +111,13 @@ impl UserRepository {
         let user_daily_spending = self.get_user_daily_spending(user_id).await?;
 
         let allowed_spending = if user_spending < 250 * 100 {
-            250 * 100 - user_daily_spending
+            250 * 100
         } else if user_spending < 750 * 100 {
-            750 * 100 - user_daily_spending
+            750 * 100
         } else if user_spending < 1500 * 100 {
-            1500 * 100 - user_daily_spending
+            1500 * 100
         } else {
-            self.get_user_daily_spending(user_id).await?
+            5000 * 100
         };
 
         Ok(allowed_spending)

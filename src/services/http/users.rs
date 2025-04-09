@@ -34,15 +34,27 @@ pub async fn get_user_details(
 
     match user_rx.await {
         Ok(Ok(user)) => {
-            return (
-                StatusCode::OK,
-                Json(json!({
+            match user {
+                Some(user) => {
+                    return (
+                        StatusCode::OK,
+                        Json(json!({
                         "user_id": user.id,
                         "daily_spending": user.daily_spending,
                         "allowed_spending": user.allowed_spending,
                         "verified": user.is_verified
-                })),
-            )
+                    })),
+                );
+            }
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({
+                        "error": "User not found"
+                    })),
+                );
+            }
+            }
         }
         Ok(Err(service_error)) => {
             return (
@@ -51,18 +63,16 @@ pub async fn get_user_details(
                     "error": "Database error",
                     "details": service_error.to_string()
                 })),
-            )
+            );
         }
         Err(e) => {
-            return {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({
-                        "error": "Internal server error",
-                        "details": e.to_string()
-                    })),
-                )
-            }
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "error": "Internal server error",
+                    "details": e.to_string()
+                })),
+            );
         }
     }
 }

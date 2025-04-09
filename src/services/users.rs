@@ -20,7 +20,7 @@ pub enum UserRequest {
     },
     GetUserDetails {
         id: String,
-        response: oneshot::Sender<Result<users::UserDetails, ServiceError>>,
+        response: oneshot::Sender<Result<Option<users::UserDetails>, ServiceError>>,
     },
     GetUserDailySpending {
         id: String,
@@ -85,16 +85,22 @@ impl UserRequestHandler {
             .map_err(|e| ServiceError::Database(e.to_string()))
     }
 
-    async fn get_user_details(&self, user_id: &str) -> Result<users::UserDetails, ServiceError> {
+    async fn get_user_details(&self, user_id: &str) -> Result<Option<users::UserDetails>, ServiceError> {
+        let user = self.get_user(user_id).await?;
+        if let None = user {
+            log::debug!("User not found");
+            return Ok(None);
+        }
+
         let daily_spending = self.get_user_daily_spending(user_id).await?;
         let allowed_spending = self.get_allowed_spending(user_id).await?;
 
-        Ok(users::UserDetails {
+        Ok(Some(users::UserDetails {
             id: user_id.to_string(),
             daily_spending,
             allowed_spending,
             is_verified: false,
-        })
+        }))
     }
 
     async fn get_user_referrer_address(
