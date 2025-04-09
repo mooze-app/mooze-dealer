@@ -16,13 +16,17 @@ pub mod utils;
 struct Args {
     #[arg(short, long, default_value = "config.toml")]
     config: String,
+    #[arg(long, default_value = "log4rs.yaml")]
+    log4rs: String,
+    #[arg(short, long, default_value = "info")]
+    log_level: String,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    init_logging().unwrap(); // should not fail
+    init_logging(&args.log4rs).unwrap(); // should not fail
 
     info!("Starting Mooze dealer service.");
     debug!("Loading configuration");
@@ -52,12 +56,12 @@ async fn main() {
     info!("Service shutting down");
 }
 
-fn init_logging() -> Result<(), anyhow::Error> {
+fn init_logging(path: &str) -> Result<(), anyhow::Error> {
     if !Path::new("logs").exists() {
         fs::create_dir("logs")?;
     }
 
-    match log4rs::init_file("log4rs.yaml", Default::default()) {
+    match log4rs::init_file(path, Default::default()) {
         Ok(_) => {
             println!("[*] Logging initialized successfully.");
             Ok(())
