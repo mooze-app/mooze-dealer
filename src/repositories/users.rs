@@ -86,7 +86,7 @@ impl UserRepository {
 
     pub async fn get_user_daily_spending(&self, user_id: &str) -> Result<i64, anyhow::Error> {
         let amount: i64 = sqlx::query_scalar(
-            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE AND status = 'eulen_depix_sent'"#,
+            r#"SELECT COALESCE(SUM(amount_in_cents), 0) FROM transactions WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE AND (status = 'eulen_depix_sent' OR status = 'finished')"#,
         )
         .bind(user_id)
         .fetch_one(&self.conn)
