@@ -450,9 +450,6 @@ impl TransactionRequestHandler {
         match asset_price {
             Some(price) => {
                 let asset_price_in_cents = price * 100.0;
-                if (asset == "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d") {
-                    return Ok((asset_price_in_cents * 1.02) as u64);
-                }
                 return Ok(asset_price_in_cents as u64)
             }
             None => Err(ServiceError::Internal("Asset price not found".to_string())),

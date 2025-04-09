@@ -83,8 +83,9 @@ impl PriceRepository {
 
     async fn fetch_best_prices(&self) -> Result<(), anyhow::Error> {
         let coingecko_prices = self.fetch_prices_from_coingecko().await?;
-        let binance_prices = self.fetch_prices_from_binance().await?;
+        //let binance_prices = self.fetch_prices_from_binance().await?;
 
+        /*
         let bitcoin = match (coingecko_prices.bitcoin, binance_prices.bitcoin) {
             (Some(cg), Some(bn)) => Some(cg.max(bn)),
             (Some(cg), None) => Some(cg),
@@ -98,9 +99,10 @@ impl PriceRepository {
             (None, Some(bn)) => Some(bn),
             (None, None) => None,
         };
+        */
 
         let mut cache = self.price_cache.write().await;
-        *cache = PriceCache { bitcoin, usdt };
+        *cache = PriceCache { bitcoin: coingecko_prices.bitcoin, usdt: coingecko_prices.usdt };
 
         Ok(())
     }
