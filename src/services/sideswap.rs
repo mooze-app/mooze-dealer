@@ -287,8 +287,6 @@ impl SideswapRequestHandler {
             )
         })?;
 
-        self.client.stop_quotes().await;
-
         let pset: PartiallySignedTransaction =
             PartiallySignedTransaction::from_str(&quote_pset.pset).map_err(|e| {
                 log::error!("Failed to parse pset: {}", e);
@@ -323,6 +321,8 @@ impl SideswapRequestHandler {
                     e.to_string(),
                 )
             })?;
+
+        self.client.stop_quotes().await;
 
         Ok(txid.txid)
     }
