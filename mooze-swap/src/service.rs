@@ -5,13 +5,12 @@ use anyhow::Result;
 use proto::swap::SwapResponse;
 use tonic::Status;
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 use crate::models::{AssetPair, AssetType, QuoteRequest, QuoteStatus, SideswapUtxo, TradeDir};
 use tonic::{Request, Response};
 use proto::swap::SwapRequest;
 
 use crate::swap_proto::swap_service_server::SwapService;
-use crate::settings::Settings;
 
 enum SideswapNotification {
     Quote {
@@ -60,7 +59,7 @@ impl SwapServiceImpl {
     }
 
     async fn swap(&self, sell_asset: &str, receive_asset: &str, amount: u64) -> Result<SwapResponse, Status> {
-        let mut utxos = self.wallet_client.get_utxos(Some(sell_asset.to_string())).await.map_err(|e| {
+        let utxos = self.wallet_client.get_utxos(Some(sell_asset.to_string())).await.map_err(|e| {
             Status::internal(format!("Failed to get utxos: {}", e))
         })?;
         let total_sum: u64 = utxos.iter().map(|utxo| utxo.value as u64).sum();
@@ -168,7 +167,7 @@ impl SwapServiceImpl {
             } => {
                 log::info!("Received quote: id={quote_id}, base_amount={base_amount}, quote_amount={quote_amount}, server_fee={server_fee}, fixed_fee={fixed_fee}, ttl={ttl}");
                 let txid = self
-                    .finish_swap(quote_id, base_amount, quote_amount, fixed_fee, ttl)
+                    .finish_swap(quote_id)
                     .await;
 
                 match txid {
@@ -183,7 +182,7 @@ impl SwapServiceImpl {
         }
     }
 
-    async fn finish_swap(&self, quote_id: u64, base_amount: u64, quote_amount: u64, fixed_fee: u64, ttl: u64) -> Result<String, Status> {
+    async fn finish_swap(&self, quote_id: u64) -> Result<String, Status> {
         let quote_pset = self.sideswap_client.get_quote_pset(quote_id).await.map_err(|e| {
             Status::internal(format!("Failed to get quote pset: {}", e))
         })?;
