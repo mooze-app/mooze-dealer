@@ -1,0 +1,78 @@
+syntax = "proto3";
+package wallet;
+
+service WalletService {
+    rpc GenerateAddress(GenerateAddressRequest) returns (GenerateAddressResponse);
+    rpc GenerateChangeAddress(GenerateChangeAddressRequest) returns (GenerateAddressResponse);
+
+    rpc GetAssetBalance(AssetBalanceRequest) returns (AssetBalanceResponse);
+    rpc GetUtxos(GetUtxosRequest) returns (GetUtxosResponse);
+
+    rpc BuildTransaction(BuildTransactionRequest) returns (BuildTransactionResponse);
+    rpc SignTransaction(SignTransactionRequest) returns (SignTransactionResponse);
+    rpc SignWithExtraDetails(SignWithExtraDetailsRequest) returns (SignWithExtraDetailsResponse);
+    rpc FinalizeTransaction(FinalizeTransactionRequest) returns (FinalizeTransactionResponse);
+}
+
+message GenerateAddressRequest {}
+message GenerateChangeAddressRequest {}
+message GenerateAddressResponse {
+    string address = 1;
+}
+
+message AssetBalanceRequest {
+    string asset_id = 1;
+}
+message AssetBalanceResponse {
+    uint64 balance =1;
+}
+
+// utxo messages
+message GetUtxosRequest {
+    optional string asset_id = 1;
+}
+message Utxo {
+    string txid = 1;
+    uint32 vout = 2;
+    string asset = 3;
+    uint64 value = 4;
+    string asset_bf = 5;
+    string value_bf = 6;
+}
+message GetUtxosResponse {
+    repeated Utxo utxos = 1;
+}
+
+// build transaction messages
+message Recipient {
+    string address = 1;
+    uint64 amount = 2;
+    string asset = 3;
+}
+message BuildTransactionRequest {
+    repeated Recipient recipients = 1;
+}
+message BuildTransactionResponse {
+    string pset = 1;
+}
+
+message SignTransactionRequest {
+    string pset = 1;
+}
+message SignTransactionResponse {
+    string signed_pset = 1;
+}
+
+message SignWithExtraDetailsRequest {
+    string pset = 1;
+  }
+message SignWithExtraDetailsResponse {
+    string signed_pset = 1;
+}
+
+message FinalizeTransactionRequest {
+    string pset = 1;
+}
+message FinalizeTransactionResponse {
+    string txid = 1;
+}

@@ -1,0 +1,16 @@
+syntax = "proto3";
+package swap;
+
+service SwapService {
+    rpc Swap(SwapRequest) returns (SwapResponse);
+}
+
+message SwapRequest {
+    string sell_asset_id = 1;
+    string receive_asset_id = 2;
+    string amount = 3;
+}
+
+message SwapResponse {
+    int64 quote_sub_id = 1;
+}
