@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 mod settings;
-mod server;
+mod service;
 pub mod wallet;
 pub use proto::wallet as wallet_proto;
 
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     init_logging(&args.log4rs).expect("Failed to initialize logging.");
     log::info!("Starting Mooze wallet service.");
 
-    let wallet_service = server::WalletServiceImpl::new(
+    let wallet_service = service::WalletServiceImpl::new(
         &settings.wallet.mnemonic,
         &settings.wallet.electrum_url,
         settings.wallet.is_mainnet
