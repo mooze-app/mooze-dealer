@@ -1,7 +1,7 @@
 use anyhow::Result;
 use proto::wallet::wallet_service_client::WalletServiceClient;
 use proto::wallet::{
-    GenerateAddressRequest, GenerateChangeAddressRequest, GenerateAddressResponse, GetUtxosRequest, Utxo,
+    GenerateAddressRequest, GenerateAddressResponse, GenerateChangeAddressRequest, GetUtxosRequest, SignWithExtraDetailsRequest, Utxo
 };
 use tokio::sync::RwLock;
 use tonic::transport::Channel;
@@ -12,7 +12,7 @@ pub struct WalletClient {
 }
 
 impl WalletClient {
-    pub async fn new(url: &str) -> Result<Self> {
+    pub async fn new(url: String) -> Result<Self> {
         let client = WalletServiceClient::connect(url).await?;
         Ok(Self {
             client: RwLock::new(client),

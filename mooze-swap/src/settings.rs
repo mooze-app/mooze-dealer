@@ -4,11 +4,19 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
-    pub swap: SwapConfig
+    pub sideswap: Sideswap,
+    pub wallet: Wallet,
 }
 
-pub struct SwapConfig {
+#[derive(Debug, Deserialize)]
+pub struct Sideswap {
+    pub url: String,
     pub api_key: String
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Wallet {
+    pub url: String,
 }
 
 impl Settings {

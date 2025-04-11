@@ -3,14 +3,15 @@ mod wallet;
 
 use anyhow::Result;
 use proto::swap::SwapResponse;
-use tokio_tungstenite::tungstenite::handshake::client::Response;
 use tonic::Status;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
+use crate::models::{AssetPair, AssetType, QuoteRequest, QuoteStatus, SideswapUtxo, TradeDir};
+use tonic::{Request, Response};
+use proto::swap::SwapRequest;
 
 use crate::swap_proto::swap_service_server::SwapService;
 use crate::settings::Settings;
-use crate::models::*;
 
 enum SideswapNotification {
     Quote {
@@ -34,20 +35,21 @@ impl SwapServiceImpl {
         let (notification_tx, notification_rx) = mpsc::channel(100);
 
         let sideswap_client = sideswap::SideswapClient::new(sideswap_url, sideswap_api_key, notification_tx).await;
-        let wallet_client = wallet::WalletClient::new(wallet_url).await;
-
+        let wallet_client = wallet::WalletClient::new(wallet_url.to_string()).await.map_err(|e| {
+            Status::internal(format!("Failed to create wallet client: {}", e))
+        })?;
         let _ = sideswap_client.start().await;
         sideswap_client.start_notification_listener().await; 
 
-        Self {
-            sideswap_client,
+        Ok(Self {
+            sideswap_client: Arc::new(sideswap_client),
             notification_rx,
-            wallet_client,
-        }
+            wallet_client: Arc::new(wallet_client),
+        })
     }
 
-    pub async fn start_notification_listener(&self) {
-        while let Ok(notification) = self.notification_rx.recv().await {
+    pub async fn start_notification_listener(&mut self) {
+        while let Some(notification) = self.notification_rx.recv().await {
             match notification {
                 SideswapNotification::Quote { quote_sub_id, status } => {
                     log::info!("Quote ID: {}", quote_sub_id);
@@ -58,25 +60,34 @@ impl SwapServiceImpl {
     }
 
     async fn swap(&self, sell_asset: &str, receive_asset: &str, amount: u64) -> Result<SwapResponse, Status> {
-        let mut utxos = self.wallet_client.get_utxos(sell_asset).await?;
-        let total_sum: u64 = utxos.as_ref().unwrap().iter().map(|utxo| utxo.value as u64).sum();
+        let mut utxos = self.wallet_client.get_utxos(Some(sell_asset.to_string())).await.map_err(|e| {
+            Status::internal(format!("Failed to get utxos: {}", e))
+        })?;
+        let total_sum: u64 = utxos.iter().map(|utxo| utxo.value as u64).sum();
 
         if total_sum < amount {
             return Err(Status::internal("InsufficientFunds"));
         }
 
+        let receive_address = self.wallet_client.request_address().await.map_err(|e| {
+            Status::internal(format!("Failed to get receive address: {}", e))
+        })?;
+        let change_address = self.wallet_client.request_change_address().await.map_err(|e| {
+            Status::internal(format!("Failed to get change address: {}", e))
+        })?;
+
         let mut current_sum = 0;
         let mut sideswap_utxos: Vec<SideswapUtxo> = Vec::new();
 
-        for utxo in utxos.unwrap().iter() {
+        for utxo in utxos.iter() {
             current_sum += utxo.value as u64;
             sideswap_utxos.push(SideswapUtxo { 
                 txid: utxo.txid.clone(), 
                 vout: utxo.vout, 
                 asset: utxo.asset.clone(), 
-                asset_bf: utxo.asset_bf, 
+                asset_bf: utxo.asset_bf.clone(), 
                 value: utxo.value, 
-                value_bf: utxo.value_bf, 
+                value_bf: utxo.value_bf.clone(), 
                 redeem_script: None 
             });
             if current_sum >= amount {
@@ -86,7 +97,9 @@ impl SwapServiceImpl {
 
         log::info!("Found {} utxos for sell_asset={}, receive_asset={}, amount={}", sideswap_utxos.len(), sell_asset, receive_asset, amount);
 
-        let markets = self.sideswap_client.get_markets().await?;
+        let markets = self.sideswap_client.get_markets().await.map_err(|e| {
+            Status::internal(format!("Failed to get markets: {}", e))
+        })?;
         let asset_pair = markets.markets.iter().find(|market| {
             (market.asset_pair.base == sell_asset && market.asset_pair.quote == receive_asset) ||
             (market.asset_pair.base == receive_asset && market.asset_pair.quote == sell_asset)
@@ -97,7 +110,10 @@ impl SwapServiceImpl {
         }
 
         let quote_req = QuoteRequest {
-            asset_pair: asset_pair.unwrap().asset_pair,
+            asset_pair: AssetPair {
+                base: asset_pair.unwrap().asset_pair.base.clone(),
+                quote: asset_pair.unwrap().asset_pair.quote.clone(),
+            },
             asset_type: if asset_pair.unwrap().asset_type == "Quote" {
                 AssetType::Base
             } else {
@@ -110,11 +126,13 @@ impl SwapServiceImpl {
             change_address,
         };
 
-        let quote = self.sideswap_client.start_quotes(quote_request).await.map_err(|e| {
+        let quote = self.sideswap_client.start_quotes(quote_req).await.map_err(|e| {
             Status::internal(format!("Failed to start quotes: {}", e))
         })?;
 
         log::debug!("Quote ID: {}", quote.quote_sub_id);
+
+        Ok(SwapResponse { quote_sub_id: quote.quote_sub_id })
     }
 
     async fn proceed_with_quote(&self, quote: QuoteStatus) {
@@ -134,11 +152,11 @@ impl SwapServiceImpl {
                     Base amount: {base_amount}, Quote amount: {quote_amount}, Server fee: {server_fee}, Fixed fee: {fixed_fee}, Available: {available}
                     "
                 );
-                self.client.stop_quotes().await;
+                self.sideswap_client.stop_quotes().await;
             }
             QuoteStatus::Error { error_msg } => {
                 log::warn!("Sideswap error: {error_msg}");
-                self.client.stop_quotes().await;
+                self.sideswap_client.stop_quotes().await;
             }
             QuoteStatus::Success {
                 quote_id,
@@ -187,12 +205,8 @@ impl SwapServiceImpl {
 impl SwapService for SwapServiceImpl {
     async fn swap(&self, request: Request<SwapRequest>) -> Result<Response<SwapResponse>, Status> {
         let swap_request = request.into_inner();
-        let result = self.swap(swap_request.sell_asset, swap_request.receive_asset, swap_request.amount).await.map_err(|e| {
-            Status::internal(format!("Failed to swap: {}", e))
-        })?;
+        let result = self.swap(&swap_request.sell_asset_id, &swap_request.receive_asset_id, swap_request.amount).await?;
 
-        Ok(Response::new(SwapResponse {
-            quote_sub_id: result.quote_sub_id,
-        }))
+        Ok(Response::new(result))
     }
 }

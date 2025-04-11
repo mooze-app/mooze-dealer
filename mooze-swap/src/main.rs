@@ -7,12 +7,10 @@ use std::fs;
 use std::path::Path;
 
 mod settings;
-mod server;
 mod service;
 
 pub mod json_rpc;
 pub mod models;
-pub mod sideswap;
 pub use proto::swap as swap_proto;
 
 #[derive(Parser)]
@@ -34,10 +32,10 @@ async fn main() -> Result<()> {
     init_logging(&args.log4rs).expect("Failed to initialize logging.");
     log::info!("Starting Mooze swap service.");
 
-    let swap_service: server::SwapServiceImpl = server::SwapServiceImpl::new(
-        settings.sideswap.url,
-        settings.sideswap.api_key
-    ).expect("Failed to create swap service.");
+    let mut swap_service = service::SwapServiceImpl::new(
+        &settings.sideswap.url, &settings.sideswap.api_key, &settings.wallet.url
+    ).await.expect("Failed to create swap service.");
+    swap_service.start_notification_listener().await;
     let addr = args.listen.parse().expect("Invalid listen address.");
 
     info!("Starting gRPC server at {}", addr);

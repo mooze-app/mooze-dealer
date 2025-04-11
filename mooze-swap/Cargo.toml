@@ -18,3 +18,6 @@ config = { workspace = true }
 
 async-trait = "0.1.68"
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+tungstenite = "0.26.2"
+futures-util.workspace = true
+uuid = { version = "1.16.0", features = ["v4"] }

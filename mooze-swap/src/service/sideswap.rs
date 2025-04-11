@@ -36,8 +36,7 @@ macro_rules! call_sideswap_api {
 pub struct SideswapClient {
     sideswap_channel: mpsc::Sender<super::SideswapNotification>,
     wss_client: Arc<JsonRpcClient>,
-    wallet_client: Arc<WalletServiceClient>,
-    api_key: &str,
+    api_key: String,
 }
 
 impl SideswapClient {
@@ -47,13 +46,11 @@ impl SideswapClient {
         sideswap_channel: mpsc::Sender<super::SideswapNotification>,
     ) -> Self {
         let wss_client = Arc::new(JsonRpcClient::new(url).await);
-        let wallet_client = WalletServiceClient::connect("http://0.0.0.0:50051").await.expect("Could not connect to wallet service.");
 
         Self {
             sideswap_channel,
             wss_client,
-            wallet_client: Arc::new(wallet_client),
-            api_key,
+            api_key: api_key.to_string(),
         }
     }
 
@@ -201,7 +198,7 @@ impl SideswapClient {
 // Static function to process notifications without requiring &self
 async fn process_notification(
     notification: serde_json::Value,
-    tx: &mpsc::Sender<SideswapRequest>,
+    tx: &mpsc::Sender<super::SideswapNotification>,
 ) -> Result<(), anyhow::Error> {
     match notification.get("method") {
         Some(method) => match method.as_str() {
@@ -224,7 +221,7 @@ async fn process_notification(
 
 async fn process_market_notification(
     params: &serde_json::Value,
-    tx: &mpsc::Sender<SideswapRequest>,
+    tx: &mpsc::Sender<super::SideswapNotification>,
 ) -> Result<(), anyhow::Error> {
     if let Some(quote) = params.get("quote") {
         process_quote(quote, tx).await?;
@@ -234,7 +231,7 @@ async fn process_market_notification(
 
 async fn process_quote(
     quote: &serde_json::Value,
-    tx: &mpsc::Sender<SideswapRequest>,
+    tx: &mpsc::Sender<super::SideswapNotification>,
 ) -> Result<(), anyhow::Error> {
     let quote_sub_id = quote["quote_sub_id"]
         .as_i64()
@@ -252,7 +249,7 @@ async fn process_quote(
                     available: low_balance["available"].as_u64().unwrap_or(0),
                 };
 
-                tx.send(SideswapRequest::Quote {
+                tx.send(super::SideswapNotification::Quote {
                     quote_sub_id,
                     status: quote,
                 })
@@ -267,7 +264,7 @@ async fn process_quote(
                         .to_owned(),
                 };
 
-                tx.send(SideswapRequest::Quote {
+                tx.send(super::SideswapNotification::Quote {
                     quote_sub_id,
                     status: quote,
                 })
@@ -286,7 +283,7 @@ async fn process_quote(
 
                 log::debug!("Got successful quote.");
 
-                let _ = tx.send(SideswapRequest::Quote {
+                let _ = tx.send(super::SideswapNotification::Quote {
                     quote_sub_id,
                     status: quote,
                 })
