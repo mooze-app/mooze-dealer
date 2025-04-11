@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     init_logging(&args.log4rs).expect("Failed to initialize logging.");
     log::info!("Starting Mooze swap service.");
 
-    let swap_service = server::SwapServiceImpl::new(
+    let swap_service: server::SwapServiceImpl = server::SwapServiceImpl::new(
         settings.sideswap.url,
         settings.sideswap.api_key
     ).expect("Failed to create swap service.");
