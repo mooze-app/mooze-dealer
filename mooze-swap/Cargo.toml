@@ -1,0 +1,20 @@
+[package]
+name = "mooze-swap"
+version="0.1.0"
+edition="2021"
+
+[dependencies]
+proto = { path = "../proto" }
+tokio = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+log4rs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+config = { workspace = true }
+
+async-trait = "0.1.68"
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
